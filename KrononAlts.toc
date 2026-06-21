@@ -1,0 +1,15 @@
+## Interface: 120007
+## Title: KrononAlts
+## Notes: Cross-character weekly panel for the Kronon ecosystem — Great Vault, Mythic+ and raid lockouts of every character in one table.
+## Notes-ptBR: Painel cross-character semanal do ecossistema Kronon — Grande Cofre, Mítica+ e lockouts de raide de todos os personagens numa tabela.
+## Notes-esES: Panel semanal multipersonaje del ecosistema Kronon — Gran Cámara, Mítica+ y bloqueos de banda de todos los personajes en una tabla.
+## Author: Kronon
+## Category: Kronon
+## Version: 0.1.0
+## SavedVariables: KrononAltsDB
+## IconTexture: Interface\Icons\INV_Misc_Note_01
+
+Libs\LibStub\LibStub.lua
+Libs\KrononLib-1.0\KrononLib-1.0.lua
+Core.lua
+UI.lua

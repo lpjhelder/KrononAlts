@@ -35,4 +35,4 @@ Dentro da tabela, **clique-direito** num personagem (que não o atual) para remo
 
 ## Ecossistema
 
-Parte do **Kronon**. Usa a **KrononLib** (i18n + barramento de eventos) compartilhada com o KrononBags e o KrononMarket. Trilíngue PT/EN/ES nativo.
+Parte do **Kronon**, junto com o KrononBags e o KrononMarket. Autocontido (sem dependências externas) e trilíngue PT/EN/ES nativo.

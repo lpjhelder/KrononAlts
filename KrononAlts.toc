@@ -5,12 +5,10 @@
 ## Notes-esES: Panel semanal multipersonaje del ecosistema Kronon — Gran Cámara, Mítica+ y bloqueos de banda de todos los personajes en una tabla.
 ## Author: Kronon
 ## Category: Kronon
-## Version: 0.1.0
+## Version: 0.1.1
 ## SavedVariables: KrononAltsDB
 ## IconTexture: Interface\Icons\INV_Misc_Note_01
 ## X-Curse-Project-ID: 1583680
 
-Libs\LibStub\LibStub.lua
-Libs\KrononLib-1.0\KrononLib-1.0.lua
 Core.lua
 UI.lua

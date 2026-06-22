@@ -8,10 +8,8 @@ local WEEK = 7 * 24 * 60 * 60
 local SNAPSHOT_DELAY = 1 -- coalescência de snapshots (segundos)
 
 -- ---------------------------------------------------------------------------
--- KrononLib: i18n (NewLocale) + EventBus (NewEventBus)
+-- i18n inline (base EN + overlay ptBR/esES) — addon autocontido, sem libs
 -- ---------------------------------------------------------------------------
-local K = LibStub("KrononLib-1.0")
-
 local EN = {
   TITLE            = "KrononAlts",
   COL_CHAR         = "Character",
@@ -115,7 +113,30 @@ local ES = {
   MSG_SNAPSHOT     = "instantánea actualizada.",
 }
 
-local L = K:NewLocale(EN, { ptBR = PT, esES = ES })
+-- Base EN + overlay do locale do cliente; esMX cai em esES; chave inexistente
+-- retorna a própria chave.
+local L = {}
+for k, v in pairs(EN) do L[k] = v end
+local loc = GetLocale()
+if loc == "esMX" then loc = "esES" end
+local ov = (loc == "ptBR" and PT) or (loc == "esES" and ES) or nil
+if ov then for k, v in pairs(ov) do L[k] = v end end
+setmetatable(L, { __index = function(_, k) return k end })
+
+-- ---------------------------------------------------------------------------
+-- EventBus inline (mesma API: bus:Register(fn) / bus:Fire(...)) — notifica a UI
+-- ---------------------------------------------------------------------------
+local function NewEventBus()
+  local cbs = {}
+  return {
+    Register = function(self, fn)
+      if type(fn) == "function" then cbs[#cbs + 1] = fn end
+    end,
+    Fire = function(self, ...)
+      for i = 1, #cbs do pcall(cbs[i], ...) end
+    end,
+  }
+end
 
 -- ---------------------------------------------------------------------------
 -- Namespace público + barramento de eventos (notifica a UI)
@@ -123,7 +144,7 @@ local L = K:NewLocale(EN, { ptBR = PT, esES = ES })
 KrononAlts = KrononAlts or {}
 local KA = KrononAlts
 KA.L = L
-KA.bus = K.NewEventBus()
+KA.bus = NewEventBus()
 
 -- ---------------------------------------------------------------------------
 -- SavedVariables (account-wide)

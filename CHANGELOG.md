@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.1
+
+**Português**
+
+- Ajustes internos de empacotamento para a publicação.
+
+**English**
+
+- Internal packaging adjustments for release.
+
+**Español**
+
+- Ajustes internos de empaquetado para la publicación.
+
 ## 0.1.0
 
 **Português**

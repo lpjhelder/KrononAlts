@@ -29,16 +29,22 @@ end
 -- Layout da tabela
 -- ---------------------------------------------------------------------------
 local ROW_H    = 22
-local FRAME_W  = 594
+local FRAME_W  = 652
 local ROWS_TOP = 80 -- distância (positiva) do topo até a 1ª linha de dados
 
 local COLS = {
-  { key = "name",   x = 12,  w = 156, justify = "LEFT"   },
-  { key = "vault",  x = 170, w = 80,  justify = "CENTER" },
-  { key = "mplus",  x = 252, w = 40,  justify = "CENTER" },
-  { key = "key",    x = 296, w = 104, justify = "LEFT"   },
-  { key = "rating", x = 402, w = 56,  justify = "CENTER" },
-  { key = "raid",   x = 462, w = 120, justify = "LEFT"   },
+  { key = "name",   x = 12,  w = 150, justify = "LEFT"   },
+  { key = "vault",  x = 164, w = 70,  justify = "CENTER" },
+  { key = "mplus",  x = 238, w = 34,  justify = "CENTER" },
+  { key = "key",    x = 276, w = 92,  justify = "LEFT"   },
+  { key = "rating", x = 372, w = 46,  justify = "CENTER" },
+  { key = "crest",  x = 422, w = 86,  justify = "LEFT"   },
+  { key = "raid",   x = 512, w = 128, justify = "LEFT"   },
+}
+
+-- Colunas com header clicável (ordenação). "key" (keystone) não ordena.
+local SORTABLE = {
+  name = true, vault = true, mplus = true, rating = true, crest = true, raid = true,
 }
 
 local HEADER_LABEL = {
@@ -47,6 +53,7 @@ local HEADER_LABEL = {
   mplus  = L.COL_MPLUS,
   key    = L.COL_KEY,
   rating = L.COL_RATING,
+  crest  = L.COL_CREST,
   raid   = L.COL_RAID,
 }
 
@@ -100,6 +107,66 @@ StaticPopupDialogs["KRONONALTS_REMOVE"] = {
 }
 
 -- ---------------------------------------------------------------------------
+-- Definir apelido (EditBox) — salvo em DB.chars[key].nick
+-- ---------------------------------------------------------------------------
+StaticPopupDialogs["KRONONALTS_NICK"] = {
+  text = L.NICK_PROMPT,
+  button1 = ACCEPT,
+  button2 = CANCEL,
+  hasEditBox = true,
+  maxLetters = 24,
+  OnShow = function(self, data)
+    local eb = self.editBox or (self.GetEditBox and self:GetEditBox())
+    if eb and data and data.key then
+      local c = KrononAltsDB and KrononAltsDB.chars and KrononAltsDB.chars[data.key]
+      eb:SetText((c and c.nick) or "")
+      eb:HighlightText()
+      eb:SetFocus()
+    end
+  end,
+  OnAccept = function(self, data)
+    local eb = self.editBox or (self.GetEditBox and self:GetEditBox())
+    if eb and data and data.key then KA.SetNick(data.key, eb:GetText()) end
+  end,
+  EditBoxOnEnterPressed = function(self)
+    local parent = self:GetParent()
+    local data = parent and parent.data
+    if data and data.key then KA.SetNick(data.key, self:GetText()) end
+    if parent then parent:Hide() end
+  end,
+  EditBoxOnEscapePressed = function(self)
+    local parent = self:GetParent()
+    if parent then parent:Hide() end
+  end,
+  timeout = 0,
+  whileDead = true,
+  hideOnEscape = true,
+  preferredIndex = 3,
+}
+
+-- Menu de contexto do personagem (MenuUtil 11.0+; fallback defensivo)
+local function ShowCharMenu(anchor, entry)
+  local d = entry.data
+  local label = d.nick or d.name or "?"
+  if MenuUtil and MenuUtil.CreateContextMenu then
+    MenuUtil.CreateContextMenu(anchor, function(_, root)
+      if root.CreateTitle then root:CreateTitle(label) end
+      root:CreateButton(L.MENU_SET_NICK, function()
+        StaticPopup_Show("KRONONALTS_NICK", label, nil, { key = entry.key })
+      end)
+      if not entry.isCurrent then
+        root:CreateButton(L.MENU_REMOVE, function()
+          StaticPopup_Show("KRONONALTS_REMOVE", label, nil, entry.key)
+        end)
+      end
+    end)
+  else
+    -- sem MenuUtil: ação principal = definir apelido (remoção via menu indisponível)
+    StaticPopup_Show("KRONONALTS_NICK", label, nil, { key = entry.key })
+  end
+end
+
+-- ---------------------------------------------------------------------------
 -- Estado da UI
 -- ---------------------------------------------------------------------------
 local frame
@@ -143,8 +210,10 @@ local function PopulateRow(row, entry, index)
   local d = entry.data
   local stale = (not entry.isCurrent) and KA.IsStale(d)
 
-  -- fundo alternado + leve esmaecida se snapshot velho
-  if index % 2 == 0 then
+  -- fundo: char logado ganha um acento sutil; demais alternam zebra
+  if entry.isCurrent then
+    row.bg:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 0.10)
+  elseif index % 2 == 0 then
     row.bg:SetColorTexture(1, 1, 1, 0.03)
   else
     row.bg:SetColorTexture(0, 0, 0, 0)
@@ -156,16 +225,18 @@ local function PopulateRow(row, entry, index)
   local cr, cg, cb = 1, 1, 1
   if cc then cr, cg, cb = cc.r, cc.g, cc.b end
 
-  -- ===== NOME =====
+  -- ===== NOME (apelido tem prioridade visual) =====
   local nameCell = row.cells.name
-  local nm = d.name or "?"
+  local realName = d.name or "?"
+  local shown = d.nick or realName
   local sealPrefix = stale and "|cffff4040(!)|r " or ""
   local ilvlStr = d.ilvl and ("  |cff8888ff" .. d.ilvl .. "|r") or ""
   nameCell.text:SetTextColor(cr, cg, cb)
-  nameCell.text:SetText(sealPrefix .. nm .. ilvlStr)
+  nameCell.text:SetText(sealPrefix .. shown .. ilvlStr)
   nameCell:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(nm, cr, cg, cb)
+    GameTooltip:SetText(shown, cr, cg, cb)
+    if d.nick then GameTooltip:AddLine(realName, 0.7, 0.7, 0.7) end
     if d.realm then GameTooltip:AddLine(d.realm, 0.7, 0.7, 0.7) end
     GameTooltip:AddLine(string.format(L.TT_LEVEL_ILVL, d.level or 0, d.ilvl or 0), 0.85, 0.85, 0.85)
     if d.updatedAt then
@@ -175,15 +246,13 @@ local function PopulateRow(row, entry, index)
       GameTooltip:AddLine(" ")
       GameTooltip:AddLine(L.STALE, 1, 0.4, 0.4, true)
     end
-    if not entry.isCurrent then
-      GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(L.TT_REMOVE_HINT, 0.5, 0.5, 0.5)
-    end
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine(L.TT_REMOVE_HINT, 0.5, 0.5, 0.5)
     GameTooltip:Show()
   end)
-  nameCell:SetScript("OnMouseUp", function(_, button)
-    if button == "RightButton" and not entry.isCurrent then
-      StaticPopup_Show("KRONONALTS_REMOVE", nm, nil, entry.key)
+  nameCell:SetScript("OnMouseUp", function(self, button)
+    if button == "RightButton" then
+      ShowCharMenu(self, entry)
     end
   end)
 
@@ -228,6 +297,18 @@ local function PopulateRow(row, entry, index)
     if v and v.hasRewards then
       GameTooltip:AddLine(" ")
       GameTooltip:AddLine(L.VAULT_HAS_REWARDS, 1, 0.82, 0)
+    end
+    -- Próxima ação: o que falta pro 1º slot ainda aberto de cada trilha
+    local nexts = (KA.GetNextActions and KA.GetNextActions(v)) or {}
+    GameTooltip:AddLine(" ")
+    if #nexts == 0 then
+      GameTooltip:AddLine(L.NEXT_DONE, 0.40, 0.85, 0.40)
+    else
+      GameTooltip:AddLine(L.NEXT_TITLE, ACCENT[1], ACCENT[2], ACCENT[3])
+      for _, na in ipairs(nexts) do
+        GameTooltip:AddDoubleLine("   " .. na.track,
+          string.format(L.NEXT_LINE, na.need or 0, na.slot or 0), 1, 1, 1, 0.85, 0.85, 0.85)
+      end
     end
     GameTooltip:Show()
   end)
@@ -280,6 +361,43 @@ local function PopulateRow(row, entry, index)
     GameTooltip:Show()
   end)
 
+  -- ===== CRESTS / MOEDAS DA SEASON =====
+  local crestCell = row.cells.crest
+  local currencies = d.currencies
+  local best
+  if type(currencies) == "table" then
+    for _, c in ipairs(currencies) do
+      if c.kind == "crest" and (c.quantity or 0) > 0 then best = c end -- maior tier vence
+    end
+  end
+  if best then
+    local short = (best.name and best.name:match("^(%S+)")) or "?"
+    local capped = (best.weeklyMax or 0) > 0 and (best.weekly or 0) >= best.weeklyMax
+    local col = capped and COLOR_DONE or COLOR_PARTIAL
+    crestCell.text:SetText(colored(col, short .. " " .. (best.quantity or 0)))
+  else
+    crestCell.text:SetText(colored(COLOR_MISSING, L.NONE))
+  end
+  crestCell:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(L.TT_CREST_TITLE, ACCENT[1], ACCENT[2], ACCENT[3])
+    if type(currencies) ~= "table" or #currencies == 0 then
+      GameTooltip:AddLine(L.TT_CREST_NONE, 0.7, 0.7, 0.7, true)
+    else
+      for _, c in ipairs(currencies) do
+        local amount = tostring(c.quantity or 0)
+        if (c.max or 0) > 0 then amount = amount .. "/" .. c.max end
+        GameTooltip:AddDoubleLine(c.name or ("#" .. tostring(c.id or "?")), amount,
+          1, 1, 1, 0.9, 0.9, 0.9)
+        if (c.weeklyMax or 0) > 0 then
+          GameTooltip:AddDoubleLine("   " .. L.TT_CREST_WEEKLY,
+            (c.weekly or 0) .. "/" .. c.weeklyMax, 0.6, 0.6, 0.6, 0.8, 0.8, 0.8)
+        end
+      end
+    end
+    GameTooltip:Show()
+  end)
+
   -- ===== RAIDE (lockout mais relevante) =====
   local raids = d.raids or {}
   local top = raids[1] -- já vem ordenado por dificuldade desc no Core
@@ -314,10 +432,26 @@ local function PopulateRow(row, entry, index)
 end
 
 -- ---------------------------------------------------------------------------
+-- Indicador de ordenação nos cabeçalhos (seta asc/desc na coluna ativa)
+-- ---------------------------------------------------------------------------
+local function UpdateHeaders()
+  if not (frame and frame.headers) then return end
+  local sort = KA.GetSort and KA.GetSort() or nil
+  for key, h in pairs(frame.headers) do
+    local label = h.baseLabel or key
+    if sort and sort.key == key then
+      label = label .. (sort.dir == "asc" and " |cffffd000\226\150\178|r" or " |cffffd000\226\150\188|r")
+    end
+    if h.text then h.text:SetText(label) end
+  end
+end
+
+-- ---------------------------------------------------------------------------
 -- Refresh: lê GetChars(), reaproveita o pool, redimensiona a janela
 -- ---------------------------------------------------------------------------
 local function Refresh()
   if not frame then return end
+  UpdateHeaders()
   local chars = KA.GetChars()
   local n = #chars
 
@@ -395,16 +529,53 @@ local function BuildFrame()
   div:SetPoint("TOPLEFT", 10, -52)
   div:SetPoint("TOPRIGHT", -10, -52)
 
-  -- cabeçalho de colunas
+  -- cabeçalho de colunas (clicável p/ ordenar nas colunas ordenáveis)
+  frame.headers = {}
   for _, col in ipairs(COLS) do
-    local h = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local h = CreateFrame("Button", nil, frame)
     h:SetPoint("TOPLEFT", frame, "TOPLEFT", col.x, -58)
-    h:SetWidth(col.w)
-    h:SetJustifyH(col.justify)
-    h:SetWordWrap(false)
-    h:SetText(HEADER_LABEL[col.key] or col.key)
-    h:SetTextColor(COLOR_HEADER[1], COLOR_HEADER[2], COLOR_HEADER[3])
+    h:SetSize(col.w, 16)
+
+    local fs = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fs:SetAllPoints()
+    fs:SetJustifyH(col.justify)
+    fs:SetWordWrap(false)
+    fs:SetTextColor(COLOR_HEADER[1], COLOR_HEADER[2], COLOR_HEADER[3])
+    h.text = fs
+    h.baseLabel = HEADER_LABEL[col.key] or col.key
+    fs:SetText(h.baseLabel)
+
+    if SORTABLE[col.key] then
+      local sortKey = col.key
+      h:SetScript("OnClick", function() if KA.SetSort then KA.SetSort(sortKey) end end)
+      h:SetScript("OnEnter", function(self)
+        self.text:SetTextColor(1, 1, 1)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:SetText(L.TT_SORT_HINT, 0.8, 0.8, 0.8)
+        GameTooltip:Show()
+      end)
+      h:SetScript("OnLeave", function(self)
+        self.text:SetTextColor(COLOR_HEADER[1], COLOR_HEADER[2], COLOR_HEADER[3])
+        GameTooltip:Hide()
+      end)
+    end
+
+    frame.headers[col.key] = h
   end
+
+  -- toggle "ocultar concluídos"
+  local hideCb = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+  hideCb:SetSize(22, 22)
+  hideCb:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -30)
+  local cbLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  cbLabel:SetPoint("RIGHT", hideCb, "LEFT", -2, 0)
+  cbLabel:SetText(L.HIDE_COMPLETED)
+  cbLabel:SetTextColor(COLOR_HEADER[1], COLOR_HEADER[2], COLOR_HEADER[3])
+  hideCb:SetChecked(KA.GetHideCompleted and KA.GetHideCompleted() or false)
+  hideCb:SetScript("OnClick", function(self)
+    if KA.SetHideCompleted then KA.SetHideCompleted(self:GetChecked()) end
+  end)
+  frame.hideCb = hideCb
 
   -- estado vazio
   local empty = frame:CreateFontString(nil, "OVERLAY", "GameFontDisable")
@@ -447,3 +618,89 @@ end
 KA.bus:Register(function()
   if frame and frame:IsShown() then Refresh() end
 end)
+
+-- ---------------------------------------------------------------------------
+-- Botão de minimapa CUSTOM (sem libs) — arrastável no anel, ângulo salvo em DB
+-- ---------------------------------------------------------------------------
+local minimapBtn
+
+local function UpdateMinimapPosition()
+  if not minimapBtn then return end
+  local db = KrononAltsDB and KrononAltsDB.minimap
+  local angle = (db and db.angle) or 215
+  local rad = math.rad(angle)
+  local r = 80
+  minimapBtn:ClearAllPoints()
+  minimapBtn:SetPoint("CENTER", Minimap, "CENTER", r * math.cos(rad), r * math.sin(rad))
+end
+
+local function MinimapDragUpdate()
+  local mx, my = Minimap:GetCenter()
+  if not (mx and my) then return end
+  local scale = Minimap:GetEffectiveScale()
+  if not scale or scale == 0 then scale = 1 end
+  local cx, cy = GetCursorPosition()
+  cx, cy = cx / scale, cy / scale
+  local atan2 = math.atan2 or math.atan
+  local angle = math.deg(atan2(cy - my, cx - mx))
+  if KrononAltsDB and type(KrononAltsDB.minimap) == "table" then
+    KrononAltsDB.minimap.angle = angle
+  end
+  UpdateMinimapPosition()
+end
+
+function KA.InitMinimap()
+  if minimapBtn then UpdateMinimapPosition(); return end
+  if not Minimap then return end
+  local db = KrononAltsDB and KrononAltsDB.minimap
+  if db and db.hide then return end
+
+  local b = CreateFrame("Button", "KrononAltsMinimapButton", Minimap)
+  b:SetSize(31, 31)
+  b:SetFrameStrata("MEDIUM")
+  b:SetFrameLevel((Minimap:GetFrameLevel() or 1) + 8)
+  b:RegisterForClicks("LeftButtonUp")
+  b:RegisterForDrag("LeftButton")
+  b:SetMovable(true)
+
+  local icon = b:CreateTexture(nil, "BACKGROUND")
+  icon:SetSize(20, 20)
+  icon:SetTexture("Interface\\Icons\\INV_Misc_Note_01")
+  icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  icon:SetPoint("CENTER", b, "CENTER", -1, 1)
+  b.icon = icon
+
+  local overlay = b:CreateTexture(nil, "OVERLAY")
+  overlay:SetSize(53, 53)
+  overlay:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+  overlay:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+
+  b:SetScript("OnClick", function()
+    if KA.Toggle then KA.Toggle() end
+  end)
+  b:SetScript("OnDragStart", function(self)
+    self:SetScript("OnUpdate", MinimapDragUpdate)
+  end)
+  b:SetScript("OnDragStop", function(self)
+    self:SetScript("OnUpdate", nil)
+  end)
+  b:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:SetText(L.MM_TITLE, ACCENT[1], ACCENT[2], ACCENT[3])
+    local s = KA.GetSummary and KA.GetSummary() or nil
+    if s then
+      if (s.full or 0) > 0 then
+        GameTooltip:AddLine(string.format(L.MM_FULL, s.full), 0.40, 0.85, 0.40)
+      end
+      if (s.rewards or 0) > 0 then
+        GameTooltip:AddLine(string.format(L.MM_REWARDS, s.rewards), 1, 0.82, 0)
+      end
+    end
+    GameTooltip:AddLine(L.MM_HINT, 0.6, 0.6, 0.6)
+    GameTooltip:Show()
+  end)
+  b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+  minimapBtn = b
+  UpdateMinimapPosition()
+end

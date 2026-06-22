@@ -11,9 +11,12 @@ Painel **cross-character** de objetivos semanais para o ecossistema **Kronon**. 
 | **M+** | Número de runs concluídas nesta semana. |
 | **Chave** | Sua keystone atual (nível + masmorra). |
 | **Rating** | Rating geral de Mítica+ da season. |
+| **Crests** | Moeda de upgrade do tier mais alto que você tem; tooltip lista todas as crests da season e fragmentos de Delve com totais e progresso semanal. |
 | **Raide** | Lockout mais relevante (bosses mortos/total por dificuldade). |
 
-Passe o mouse em qualquer célula para o **detalhe** (tooltip de 2 camadas): o breakdown das 3 trilhas do cofre com ilvl previsto por slot, a lista completa de lockouts de raide, a maior chave da semana, etc.
+Passe o mouse em qualquer célula para o **detalhe** (tooltip de 2 camadas): o breakdown das 3 trilhas do cofre com ilvl previsto por slot **e o que falta pro próximo slot de cada trilha**, a lista completa de lockouts de raide, a maior chave da semana, as moedas da season, etc.
+
+**Clique nos cabeçalhos** (Personagem, Cofre, M+, Rating, Crests, Raide) para **ordenar** a tabela; a seta indica a direção. O personagem logado fica **destacado** na tabela. Marque **"Ocultar concluídos"** no topo para esconder personagens com cofre 3/3/3 e sem recompensa pendente.
 
 ## Como funciona
 
@@ -30,8 +33,11 @@ Alt **offline** mostra sempre o **último snapshot** — o WoW não permite ler 
 
 - `/kalts` ou `/ka` — abre/fecha o painel.
 - `/kalts snapshot` — força uma releitura do personagem atual.
+- `/kalts curr` — lista no chat as moedas da season (id + nome + quantidade/cap) e faz uma varredura de descoberta. Útil pra confirmar/ajustar os IDs quando uma season nova chega.
 
-Dentro da tabela, **clique-direito** num personagem (que não o atual) para removê-lo do banco.
+Há também um **botão de minimapa** (clique-esquerdo abre/fecha; arraste para reposicionar no anel; o tooltip resume quantos alts têm cofre cheio ou recompensa pendente).
+
+Dentro da tabela, **clique-direito** num personagem abre um **menu de contexto**: definir um **apelido** (exibido no lugar do nome) ou **remover** o personagem do banco.
 
 ## Ecossistema
 

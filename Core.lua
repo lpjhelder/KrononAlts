@@ -735,6 +735,8 @@ local function vaultFull(d)
   local function full(t) return t and (t.filled or 0) >= 3 end
   return full(v.mplus) and full(v.raid) and full(v.world)
 end
+-- exposto p/ a UI (glow da linha com cofre 3/3/3) e p/ a API pública
+KA.IsVaultFull = vaultFull
 
 -- "Completo" = cofre 3/3/3 e sem recompensa pendente (usado pelo "ocultar concluídos")
 function KA.IsComplete(d)
@@ -764,8 +766,9 @@ function KA.GetNextActions(v)
   return out
 end
 
--- Resumo p/ o tooltip do botão de minimapa
-function KA.GetSummary()
+-- Contagens da conta (cofre cheio / recompensa pendente / total) — usado pela UI
+-- (linha-resumo + tooltip do minimapa) e como base da API pública GetSummary.
+function KA.GetCounts()
   local full, rewards, total = 0, 0, 0
   if DB and DB.chars then
     for _, c in pairs(DB.chars) do
@@ -947,6 +950,82 @@ function KA.PrintCurrencies()
   end
   if found == 0 then print("  (nada encontrado nessa faixa)") end
 end
+
+-- ===========================================================================
+-- API PÚBLICA — namespace GLOBAL `KrononAlts` (consumida por outros addons do
+-- ecossistema, ex.: KrononBags). Read-only, defensiva e disponível JÁ no load
+-- (não dependem da janela existir/estar aberta). KA == KrononAlts (mesma tabela),
+-- então estas globais reutilizam os helpers KA.* internos.
+-- ===========================================================================
+
+-- Próxima ação mais relevante da CONTA, como string curta (ou nil).
+-- Prioridade: 1) cofre com recompensa pendente; 2) 1º slot de cofre faltando.
+-- Reutiliza KA.GetChars (lista ordenada) e KA.GetNextActions (slots faltando).
+local function ComputeNextAction()
+  local ok, chars = pcall(KA.GetChars)
+  if not ok or type(chars) ~= "table" then return nil end
+  -- 1) recompensa pendente no Grande Cofre = ação mais urgente
+  for _, e in ipairs(chars) do
+    local d = e and e.data
+    if type(d) == "table" and d.vault and d.vault.hasRewards then
+      return (d.nick or d.name or "?") .. ": " .. L.VAULT_HAS_REWARDS
+    end
+  end
+  -- 2) primeiro slot de cofre ainda não preenchido de algum personagem
+  for _, e in ipairs(chars) do
+    local d = e and e.data
+    local nexts = (type(d) == "table") and KA.GetNextActions(d.vault) or nil
+    if type(nexts) == "table" and nexts[1] then
+      local na = nexts[1]
+      return string.format("%s: %s %s",
+        d.nick or d.name or "?", na.track or "?",
+        string.format(L.NEXT_LINE, na.need or 0, na.slot or 0))
+    end
+  end
+  return nil
+end
+
+--- KrononAlts.GetSummary() -> table
+--  Resumo da CONTA inteira. SEMPRE retorna uma tabela:
+--    { chars = number, vaultReady = number, vaultFull = number, nextAction = string|nil }
+--    chars      = nº de personagens rastreados
+--    vaultReady = nº com Grande Cofre com recompensa pendente (a coletar)
+--    vaultFull  = nº com Grande Cofre cheio (3/3/3)
+--    nextAction = string curta da próxima ação mais relevante da conta, ou nil
+function KrononAlts.GetSummary()
+  local okc, counts = pcall(KA.GetCounts)
+  if not okc or type(counts) ~= "table" then counts = { full = 0, rewards = 0, total = 0 } end
+  local nextAction
+  local okn, na = pcall(ComputeNextAction)
+  if okn then nextAction = na end
+  return {
+    chars      = counts.total or 0,
+    vaultReady = counts.rewards or 0,
+    vaultFull  = counts.full or 0,
+    nextAction = nextAction,
+  }
+end
+
+--- KrononAlts.GetChars() -> table (lista)
+--  Lista read-only dos personagens com os dados do snapshot. Cada item:
+--    { key = string, data = <snapshot do char>, isCurrent = boolean }
+--  Já é uma global pública: KA == KrononAlts, e KA.GetChars (definida acima) É
+--  KrononAlts.GetChars — mesma função, mesma tabela. NÃO mutar `data` (referência
+--  ao registro salvo). Por isso não a redefinimos aqui (evita sobrescrever o
+--  helper interno / recursão); apenas documentamos o contrato público.
+
+--- KrononAlts.RegisterForUpdate(fn) -> boolean
+--  Registra `fn` para ser chamada quando os snapshots atualizarem (via KA.bus).
+--  Cada callback roda isolado em pcall. Ignora `fn` que não seja função.
+--  Retorna true se registrou, false caso contrário.
+function KrononAlts.RegisterForUpdate(fn)
+  if type(fn) ~= "function" then return false end
+  KA.bus:Register(fn)
+  return true
+end
+
+-- KrononAlts.Toggle() e KrononAlts.Open() são definidas em UI.lua (precisam da
+-- janela): Toggle alterna, Open garante a janela aberta. Ambas reutilizam KA.Toggle.
 
 -- ---------------------------------------------------------------------------
 -- Eventos + debounce (snapshots coalescidos com C_Timer)

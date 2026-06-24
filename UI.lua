@@ -233,6 +233,22 @@ local function CreateRow(parent)
   row.hover:SetColorTexture(1, 1, 1, 0.05)
   row.hover:Hide()
 
+  -- glow dourado SUTIL p/ linha com Grande Cofre cheio (3/3/3); pulsa em BOUNCE.
+  -- ARTWORK sublevel -1 = atrás de pips/acento; texto (OVERLAY) fica por cima.
+  row.glow = row:CreateTexture(nil, "ARTWORK", nil, -1)
+  row.glow:SetAllPoints()
+  row.glow:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 1)
+  row.glow:SetBlendMode("ADD")
+  row.glow:SetAlpha(0)
+  row.glow:Hide()
+  row.glowAg = row.glow:CreateAnimationGroup()
+  local pulse = row.glowAg:CreateAnimation("Alpha")
+  pulse:SetFromAlpha(0.15)
+  pulse:SetToAlpha(0.50)
+  pulse:SetDuration(1.1)
+  pulse:SetSmoothing("IN_OUT")
+  row.glowAg:SetLooping("BOUNCE")
+
   row.accent = row:CreateTexture(nil, "ARTWORK")
   row.accent:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
   row.accent:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
@@ -419,6 +435,20 @@ local function PopulateRow(row, entry, index)
     row.cells.gold:SetText(colored(COLOR_GOLD, g))
   else
     row.cells.gold:SetText(colored(COLOR_MISSING, L.NONE))
+  end
+
+  -- GLOW dourado: só na(s) linha(s) com Grande Cofre cheio (3/3/3); pulsa em
+  -- loop enquanto cheio, limpa (sem vazar animação) nas demais.
+  local vaultIsFull = KA.IsVaultFull and KA.IsVaultFull(d)
+  if row.glow then
+    if vaultIsFull then
+      row.glow:Show()
+      if row.glowAg and not row.glowAg:IsPlaying() then row.glowAg:Play() end
+    else
+      if row.glowAg and row.glowAg:IsPlaying() then row.glowAg:Stop() end
+      row.glow:SetAlpha(0)
+      row.glow:Hide()
+    end
   end
 end
 
@@ -684,7 +714,7 @@ Refresh = function()
 
   -- resumo
   if frame.summary then
-    local s = KA.GetSummary and KA.GetSummary() or { full = 0, rewards = 0, total = 0 }
+    local s = KA.GetCounts and KA.GetCounts() or { full = 0, rewards = 0, total = 0 }
     if (s.total or 0) == 0 then
       frame.summary:SetText("|cff888888" .. L.SUMMARY_EMPTY .. "|r")
     else
@@ -727,7 +757,13 @@ Refresh = function()
       y = y + (h or 0)
     end
   end
-  for i = n + 1, #rows do rows[i]:Hide() end
+  for i = n + 1, #rows do
+    local r = rows[i]
+    r:Hide()
+    -- para a animação de glow das linhas recicladas/ocultas (evita vazamento)
+    if r.glowAg and r.glowAg:IsPlaying() then r.glowAg:Stop() end
+    if r.glow then r.glow:Hide() end
+  end
 
   if frame.empty then frame.empty:SetShown(n == 0) end
   scrollChild:SetHeight(math.max(y, 1))
@@ -765,6 +801,22 @@ local function BuildFrame()
   frame:SetClampedToScreen(true)
   frame:SetMovable(true)
   ApplyPosition(frame)
+
+  -- fade-in suave ao abrir (animação nativa; SetToFinalAlpha garante alpha 1 ao fim)
+  frame.fadeIn = frame:CreateAnimationGroup()
+  local fade = frame.fadeIn:CreateAnimation("Alpha")
+  fade:SetFromAlpha(0)
+  fade:SetToAlpha(1)
+  fade:SetDuration(0.18)
+  fade:SetSmoothing("OUT")
+  frame.fadeIn:SetToFinalAlpha(true)
+  frame:SetScript("OnShow", function(self)
+    if self.fadeIn then
+      self.fadeIn:Stop()
+      self:SetAlpha(0)
+      self.fadeIn:Play()
+    end
+  end)
 
   if frame.SetBackdrop then
     frame:SetBackdrop({
@@ -914,11 +966,15 @@ local function BuildFrame()
   end)
 
   Refresh()
+  -- nasce oculta: KA.Toggle/Open decidem mostrar (e disparam o fade-in no OnShow).
+  -- Sem isto, o frame criado já vem visível e o 1º Toggle apenas o esconderia.
+  frame:Hide()
 end
 
 -- ---------------------------------------------------------------------------
--- API pública da UI
+-- API pública da UI (globais KrononAlts.* — KA == KrononAlts)
 -- ---------------------------------------------------------------------------
+--- KrononAlts.Toggle() — alterna a visibilidade da janela (cria sob demanda).
 function KA.Toggle()
   if not frame then BuildFrame() end
   if frame:IsShown() then
@@ -927,6 +983,12 @@ function KA.Toggle()
     Refresh()
     frame:Show()
   end
+end
+
+--- KrononAlts.Open() — garante a janela ABERTA (nunca fecha). Reutiliza KA.Toggle.
+function KA.Open()
+  if not frame then BuildFrame() end
+  if not frame:IsShown() then KA.Toggle() end
 end
 
 KA.bus:Register(function()
@@ -1001,7 +1063,7 @@ function KA.InitMinimap()
   b:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     GameTooltip:SetText(L.MM_TITLE, ACCENT[1], ACCENT[2], ACCENT[3])
-    local s = KA.GetSummary and KA.GetSummary() or nil
+    local s = KA.GetCounts and KA.GetCounts() or nil
     if s then
       if (s.full or 0) > 0 then
         GameTooltip:AddLine(string.format(L.MM_FULL, s.full), 0.40, 0.85, 0.40)

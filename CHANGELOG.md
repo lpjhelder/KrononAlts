@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.4.0
+
+**Português**
+
+- **API pública** (`KrononAlts`): outros addons do ecossistema (ex.: KrononBags) já podem ler o resumo da conta e abrir o painel.
+  - `KrononAlts.GetSummary()` — resumo da conta: nº de personagens, cofres com recompensa pendente, cofres cheios (3/3/3) e a próxima ação mais relevante.
+  - `KrononAlts.GetChars()` — lista somente-leitura dos personagens com os dados do snapshot.
+  - `KrononAlts.Toggle()` / `KrononAlts.Open()` — alterna / abre a janela.
+  - `KrononAlts.RegisterForUpdate(fn)` — registra um callback chamado a cada atualização dos snapshots.
+- **Novo**: animação de **fade-in** suave ao abrir a janela.
+- **Novo**: **brilho dourado sutil** pulsando na linha de quem está com o Grande Cofre cheio (3/3/3).
+
+**English**
+
+- **Public API** (`KrononAlts`): other ecosystem addons (e.g. KrononBags) can now read the account summary and open the panel.
+  - `KrononAlts.GetSummary()` — account summary: number of characters, vaults with a reward waiting, full vaults (3/3/3) and the most relevant next action.
+  - `KrononAlts.GetChars()` — read-only list of characters with their snapshot data.
+  - `KrononAlts.Toggle()` / `KrononAlts.Open()` — toggle / open the window.
+  - `KrononAlts.RegisterForUpdate(fn)` — register a callback fired whenever the snapshots update.
+- **New**: smooth **fade-in** animation when the window opens.
+- **New**: **subtle golden glow** pulsing on the row of any character with a full Great Vault (3/3/3).
+
+**Español**
+
+- **API pública** (`KrononAlts`): otros addons del ecosistema (p. ej. KrononBags) ya pueden leer el resumen de la cuenta y abrir el panel.
+  - `KrononAlts.GetSummary()` — resumen de la cuenta: número de personajes, cámaras con recompensa pendiente, cámaras llenas (3/3/3) y la próxima acción más relevante.
+  - `KrononAlts.GetChars()` — lista de solo lectura de los personajes con los datos de la instantánea.
+  - `KrononAlts.Toggle()` / `KrononAlts.Open()` — alterna / abre la ventana.
+  - `KrononAlts.RegisterForUpdate(fn)` — registra una función llamada en cada actualización de las instantáneas.
+- **Nuevo**: animación de **fundido de entrada** suave al abrir la ventana.
+- **Nuevo**: **brillo dorado sutil** que pulsa en la fila de quien tiene la Gran Cámara llena (3/3/3).
+
 ## 0.3.0
 
 **Português**

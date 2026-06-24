@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.6.0
+
+Redesenho "menos é mais": o painel agora destaca o que importa e corta repetição. / "Less is more" redesign: the panel now highlights what matters and cuts repetition. / Rediseño "menos es más": el panel ahora resalta lo importante y elimina repeticiones.
+
+**Português**
+
+- **Pips do cofre com 3 trilhas** — agora **M+ | Raide | Delve** (9 pips). Um alt que só fez delves deixa de parecer vazio.
+- **Coluna M+ unificada** — mostra **"+N"** da chave colorido pela faixa de rating; o rating exato vai pro tooltip da linha.
+- **Crests por cap semanal** — a coluna mostra **✓** quando no cap (senão o progresso curto); os 5 tiers em número ficam no detalhe.
+- **Resumo do topo acionável** — troca o ouro por **"X com recompensa a coletar"**.
+- **Detalhe enxuto** — Delves promovido pro topo, lockouts de raide em 1 linha, e fim das repetições (sem "Trilha de Delves" duplicada nem "falta +N" repetido).
+- **Cortes** — removidos o countdown diário (fica só o semanal, em destaque) e a seção de chefes mundiais.
+- **Opcionais (OFF por padrão)** — coluna de **Ouro** (`/kalts gold`) e seção de **Profissões** (`/kalts prof` ou toggle no detalhe). Ouro total e **Catalisador** (Warband) agora no tooltip do minimapa.
+- **Visual mais calmo** — dourado reservado só pra recompensa pronta / cofre 3/3/3; demais números em cinza neutro; brilho estático quando vários cofres estão cheios.
+
+**English**
+
+- **Vault pips with 3 tracks** — now **M+ | Raid | Delve** (9 pips). An alt that only ran delves no longer looks empty.
+- **Unified M+ column** — shows the keystone **"+N"** colored by rating tier; the exact rating moves to the row tooltip.
+- **Crests by weekly cap** — the column shows **✓** when at cap (otherwise short progress); the 5 tiers in numbers stay in the detail.
+- **Actionable top summary** — swaps gold for **"X with a reward to collect"**.
+- **Leaner detail** — Delves promoted to the top, raid lockouts down to a single line, and no more duplication (no duplicated "Delve track", no repeated "+N to go").
+- **Cuts** — removed the daily countdown (only the weekly remains, highlighted) and the world bosses section.
+- **Optional (OFF by default)** — **Gold** column (`/kalts gold`) and **Professions** section (`/kalts prof` or the detail toggle). Total gold and **Catalyst** (Warband) now live in the minimap tooltip.
+- **Calmer visuals** — gold reserved for a ready reward / full 3/3/3 vault; other numbers in neutral gray; static glow when several vaults are full.
+
+**Español**
+
+- **Pips de la cámara con 3 vías** — ahora **M+ | Banda | Profundidad** (9 pips). Un alt que solo hizo profundidades deja de parecer vacío.
+- **Columna M+ unificada** — muestra el **"+N"** de la piedra coloreado por el nivel de puntuación; la puntuación exacta pasa al tooltip de la fila.
+- **Crests por tope semanal** — la columna muestra **✓** al llegar al tope (si no, el progreso corto); los 5 niveles en número quedan en el detalle.
+- **Resumen superior accionable** — cambia el oro por **"X con recompensa por reclamar"**.
+- **Detalle más limpio** — Profundidades promovido arriba, bloqueos de banda en 1 línea, y sin repeticiones (sin "Vía de Profundidades" duplicada ni "+N" repetido).
+- **Recortes** — eliminados la cuenta atrás diaria (solo queda la semanal, resaltada) y la sección de jefes de mundo.
+- **Opcionales (OFF por defecto)** — columna de **Oro** (`/kalts gold`) y sección de **Profesiones** (`/kalts prof` o el toggle del detalle). Oro total y **Catalizador** (Hermandad de guerra) ahora en el tooltip del minimapa.
+- **Visual más tranquilo** — el dorado se reserva para recompensa lista / cámara 3/3/3; los demás números en gris neutro; brillo estático cuando varias cámaras están llenas.
+
 ## 0.5.0
 
 **Português**

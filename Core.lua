@@ -35,11 +35,8 @@ local EN = {
   COL_CHAR         = "Character",
   COL_VAULT        = "Vault",
   COL_MPLUS        = "M+",
-  COL_KEY          = "Keystone",
-  COL_RATING       = "Rating",
   COL_RAID         = "Raid",
   RESET_WEEKLY     = "Weekly reset:",
-  RESET_DAILY      = "Daily reset:",
   ABBR_D           = "d",
   ABBR_H           = "h",
   ABBR_M           = "m",
@@ -55,6 +52,7 @@ local EN = {
   TT_BEST          = "Best key: +%d",
   TT_NO_KEY        = "No keystone in bags",
   TT_RATING        = "Mythic+ rating: %d",
+  TT_KEYSTONE      = "Keystone: +%d",
   TT_RAID_TITLE    = "Raid lockouts",
   TT_NO_RAID       = "No raid lockouts",
   TT_LEVEL_ILVL    = "Level %d  •  ilvl %d",
@@ -97,19 +95,18 @@ local EN = {
   DETAIL_WEEKLY    = "Weeklies",
   DETAIL_PROF      = "Professions",
   WEEKLY_CONQUEST  = "Conquest",
-  WEEKLY_CATALYST  = "Catalyst charges",
   PROF_KNOWLEDGE   = "Knowledge",
   PROF_OPEN_HINT   = "open the profession in-game to refresh",
-  SLOT_FILLED      = "ilvl %d",
-  SLOT_NEED        = "needs +%d",
   CLICK_EXPAND     = "Click a row to expand  \194\183  right-click for options",
   NO_DATA          = "No data yet — log in on this character.",
   DETAIL_DELVES    = "Delves",
   DELVE_TIER       = "Vault delve tier",
-  DELVE_TRACK      = "Delve track (vault World slot)",
   DELVE_NONE       = "No delve data yet — log in on this character.",
-  WEEKLY_WORLDBOSS = "World bosses",
-  SUMMARY_ACCT     = "%d/%d vaults  \194\183  %d/%d at cap  \194\183  %s gold",
+  SUMMARY_ACCT     = "%d/%d vaults ready  \194\183  %d at cap",
+  SUMMARY_REWARDS  = "%d with a reward to collect",
+  VAULT_HEADER_HINT= "Vault slots: M+ | Raid | Delve",
+  MM_CATALYST      = "Catalyst: %d/%d",
+  MM_GOLD          = "Total gold: %s",
   GROUP_BTN        = "Group: %s",
   GROUP_NONE       = "off",
   GROUP_REALM      = "realm",
@@ -124,11 +121,8 @@ local EN = {
 local PT = {
   COL_CHAR         = "Personagem",
   COL_VAULT        = "Cofre",
-  COL_KEY          = "Chave",
-  COL_RATING       = "Rating",
   COL_RAID         = "Raide",
   RESET_WEEKLY     = "Reset semanal:",
-  RESET_DAILY      = "Reset diário:",
   TRACK_MPLUS      = "Mítica+",
   TRACK_RAID       = "Raide",
   TRACK_WORLD      = "Mundo",
@@ -141,6 +135,7 @@ local PT = {
   TT_BEST          = "Maior chave: +%d",
   TT_NO_KEY        = "Sem chave nas bolsas",
   TT_RATING        = "Rating de Mítica+: %d",
+  TT_KEYSTONE      = "Chave: +%d",
   TT_RAID_TITLE    = "Lockouts de raide",
   TT_NO_RAID       = "Nenhum lockout de raide",
   TT_LEVEL_ILVL    = "Nível %d  •  ilvl %d",
@@ -175,18 +170,18 @@ local PT = {
   DETAIL_WEEKLY    = "Semanais",
   DETAIL_PROF      = "Profissões",
   WEEKLY_CONQUEST  = "Conquista",
-  WEEKLY_CATALYST  = "Cargas de Catalisador",
   PROF_KNOWLEDGE   = "Conhecimento",
   PROF_OPEN_HINT   = "abra a profissão no jogo para atualizar",
-  SLOT_NEED        = "falta +%d",
   CLICK_EXPAND     = "Clique numa linha para expandir  \194\183  clique-direito: opções",
   NO_DATA          = "Sem dados ainda — logue neste personagem.",
   DETAIL_DELVES    = "Delves",
   DELVE_TIER       = "Tier de delve do cofre",
-  DELVE_TRACK      = "Trilha de Delves (slot Mundo do cofre)",
   DELVE_NONE       = "Sem dados de delve ainda — logue neste personagem.",
-  WEEKLY_WORLDBOSS = "Chefes mundiais",
-  SUMMARY_ACCT     = "%d/%d cofres  \194\183  %d/%d no cap  \194\183  %s ouro",
+  SUMMARY_ACCT     = "%d/%d cofres prontos  \194\183  %d no cap",
+  SUMMARY_REWARDS  = "%d com recompensa a coletar",
+  VAULT_HEADER_HINT= "Slots do cofre: M+ | Raide | Delve",
+  MM_CATALYST      = "Catalisador: %d/%d",
+  MM_GOLD          = "Ouro total: %s",
   GROUP_BTN        = "Agrupar: %s",
   GROUP_NONE       = "não",
   GROUP_REALM      = "reino",
@@ -201,11 +196,8 @@ local PT = {
 local ES = {
   COL_CHAR         = "Personaje",
   COL_VAULT        = "Cámara",
-  COL_KEY          = "Piedra",
-  COL_RATING       = "Punt.",
   COL_RAID         = "Banda",
   RESET_WEEKLY     = "Reinicio semanal:",
-  RESET_DAILY      = "Reinicio diario:",
   TRACK_MPLUS      = "Mítica+",
   TRACK_RAID       = "Banda",
   TRACK_WORLD      = "Mundo",
@@ -218,6 +210,7 @@ local ES = {
   TT_BEST          = "Mejor piedra: +%d",
   TT_NO_KEY        = "Sin piedra angular en las bolsas",
   TT_RATING        = "Puntuación de Mítica+: %d",
+  TT_KEYSTONE      = "Piedra: +%d",
   TT_RAID_TITLE    = "Bloqueos de banda",
   TT_NO_RAID       = "Sin bloqueos de banda",
   TT_LEVEL_ILVL    = "Nivel %d  •  ilvl %d",
@@ -252,18 +245,18 @@ local ES = {
   DETAIL_WEEKLY    = "Semanales",
   DETAIL_PROF      = "Profesiones",
   WEEKLY_CONQUEST  = "Conquista",
-  WEEKLY_CATALYST  = "Cargas de Catalizador",
   PROF_KNOWLEDGE   = "Conocimiento",
   PROF_OPEN_HINT   = "abre la profesión en el juego para actualizar",
-  SLOT_NEED        = "falta +%d",
   CLICK_EXPAND     = "Clic en una fila para expandir  \194\183  clic derecho: opciones",
   NO_DATA          = "Aún sin datos — entra con este personaje.",
   DETAIL_DELVES    = "Profundidades",
   DELVE_TIER       = "Nivel de profundidad de la cámara",
-  DELVE_TRACK      = "Vía de Profundidades (ranura Mundo de la cámara)",
   DELVE_NONE       = "Aún sin datos de profundidades — entra con este personaje.",
-  WEEKLY_WORLDBOSS = "Jefes de mundo",
-  SUMMARY_ACCT     = "%d/%d cámaras  \194\183  %d/%d en tope  \194\183  %s oro",
+  SUMMARY_ACCT     = "%d/%d cámaras listas  \194\183  %d en tope",
+  SUMMARY_REWARDS  = "%d con recompensa por reclamar",
+  VAULT_HEADER_HINT= "Ranuras de la cámara: M+ | Banda | Profundidad",
+  MM_CATALYST      = "Catalizador: %d/%d",
+  MM_GOLD          = "Oro total: %s",
   GROUP_BTN        = "Agrupar: %s",
   GROUP_NONE       = "no",
   GROUP_REALM      = "reino",
@@ -330,6 +323,8 @@ local function InitDB()
   if KrononAltsDB.hideCompleted == nil then KrononAltsDB.hideCompleted = false end
   if KrononAltsDB.loginReminder == nil then KrononAltsDB.loginReminder = true end
   if type(KrononAltsDB.groupBy) ~= "string" then KrononAltsDB.groupBy = "none" end
+  if KrononAltsDB.showGold == nil then KrononAltsDB.showGold = false end          -- coluna de ouro: OFF por padrão
+  if KrononAltsDB.showProfessions == nil then KrononAltsDB.showProfessions = false end -- seção de profissões: OFF por padrão
   -- KrononAltsDB.sort = { key, dir } — nil = ordenação padrão (logado primeiro)
   DB = KrononAltsDB
 end
@@ -919,6 +914,37 @@ function KA.GetAccountSummary()
   return out
 end
 
+-- Catalisador (Warband-wide: mesmo valor em todo char). Pega o snapshot mais
+-- recente entre os chars (evita exibir um valor desatualizado). Defensivo.
+function KA.GetCatalyst()
+  if not (DB and DB.chars) then return nil end
+  local best, bestAt
+  for _, c in pairs(DB.chars) do
+    if type(c) == "table" and type(c.weeklies) == "table" and type(c.weeklies.catalyst) == "table" then
+      local at = c.updatedAt or 0
+      if not bestAt or at > bestAt then best, bestAt = c.weeklies.catalyst, at end
+    end
+  end
+  if type(best) ~= "table" then return nil end
+  return { name = best.name, quantity = best.quantity or 0, max = best.max or 0 }
+end
+
+-- Coluna de ouro: opcional (OFF por padrão). Persistido. /kalts gold alterna.
+function KA.GetShowGold() return (DB and DB.showGold) == true end
+function KA.ToggleShowGold()
+  if not DB then return end
+  DB.showGold = not (DB.showGold == true)
+  KA.bus:Fire()
+end
+
+-- Seção de profissões no detalhe: opcional (OFF por padrão). /kalts prof alterna.
+function KA.GetShowProfessions() return (DB and DB.showProfessions) == true end
+function KA.ToggleProfessions()
+  if not DB then return end
+  DB.showProfessions = not (DB.showProfessions == true)
+  KA.bus:Fire()
+end
+
 -- Agrupamento da lista (3 estados): "none" | "realm" | "faction". Persistido.
 function KA.GetGroupBy() return (DB and DB.groupBy) or "none" end
 
@@ -1264,6 +1290,12 @@ SlashCmdList["KRONONALTS"] = function(msg)
     return
   elseif msg == "group" or msg == "agrupar" or msg == "grupo" then
     if KA.CycleGroupBy then KA.CycleGroupBy() end
+    return
+  elseif msg == "gold" or msg == "ouro" or msg == "oro" then
+    if KA.ToggleShowGold then KA.ToggleShowGold() end
+    return
+  elseif msg == "prof" or msg == "profs" or msg == "profissoes" or msg == "profesiones" then
+    if KA.ToggleProfessions then KA.ToggleProfessions() end
     return
   end
   if KA.Toggle then KA.Toggle() end

@@ -13,10 +13,13 @@ local BG          = { 0.1137, 0.1412, 0.1647 } -- #1D242A
 local ACCENT      = { 1.00, 0.82, 0.00 }        -- dourado (recompensa / cap)
 local ACCENT_BLUE = { 0.20, 0.60, 1.00 }        -- #3399FF (char logado)
 local COLOR_DONE    = { 0.20, 0.82, 0.48 }      -- #33D17A
-local COLOR_PARTIAL = { 1.00, 0.82, 0.00 }
 local COLOR_MISSING = { 0.50, 0.50, 0.50 }      -- #808080
 local COLOR_HEADER  = { 0.70, 0.70, 0.74 }
-local COLOR_GOLD    = { 1.00, 0.84, 0.00 }
+local COLOR_NEUTRAL = { 0.80, 0.80, 0.84 }      -- cinza-claro neutro (números sem destaque)
+local COLOR_ACTION  = { 1.00, 0.65, 0.25 }      -- laranja "a fazer" (acionável, NÃO é dourado de recompensa)
+
+-- Ícone de "no cap / concluído" (textura nativa, evita glyph unicode que pode não renderizar)
+local CHECK_ICON = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
 
 local function hex(col)
   return string.format("%02x%02x%02x",
@@ -84,31 +87,26 @@ local CONTENT_TOP = TOP_TITLE + TOP_SUMMARY + TOP_HEADER + 4 -- topo do scroll
 -- x relativo à esquerda da linha; pips desenhados à parte na coluna "vault".
 -- O conteúdo cabe na viewport do ScrollFrame (~570px) para a coluna de ouro
 -- (à direita) não ser cortada pelo recorte do scroll.
+-- Coluna "M+" funde RATING + CHAVE (mostra "+N" colorido pela faixa de rating; o
+-- rating exato vai pro tooltip da linha). A coluna "gold" é opcional (toggle OFF
+-- por padrão — /kalts gold) e fica escondida; o total da conta vai no tooltip do
+-- minimapa. O cofre tem 9 pips agrupados M+ | Raide | Delve.
 local COLS = {
-  { key = "name",   x = 20,  w = 140, justify = "LEFT",   label = L.COL_CHAR,   sort = "name"   },
-  { key = "ilvl",   x = 168, w = 34,  justify = "RIGHT",  label = L.COL_ILVL,   sort = "ilvl"   },
-  { key = "rating", x = 204, w = 46,  justify = "RIGHT",  label = L.COL_RATING, sort = "rating" },
-  { key = "key",    x = 254, w = 56,  justify = "CENTER", label = L.COL_KEY,    sort = nil      },
-  { key = "vault",  x = 314, w = 92,  justify = "LEFT",   label = L.COL_VAULT,  sort = "vault"  },
-  { key = "crest",  x = 408, w = 66,  justify = "RIGHT",  label = L.COL_CREST,  sort = "crest"  },
-  { key = "gold",   x = 476, w = 82,  justify = "RIGHT",  label = L.COL_GOLD,   sort = "gold"   },
+  { key = "name",  x = 20,  w = 140, justify = "LEFT",   label = L.COL_CHAR,  sort = "name"   },
+  { key = "ilvl",  x = 168, w = 34,  justify = "RIGHT",  label = L.COL_ILVL,  sort = "ilvl"   },
+  { key = "mplus", x = 206, w = 54,  justify = "CENTER", label = L.COL_MPLUS, sort = "rating" },
+  { key = "vault", x = 268, w = 116, justify = "CENTER", label = L.COL_VAULT, sort = "vault"  },
+  { key = "crest", x = 388, w = 60,  justify = "RIGHT",  label = L.COL_CREST, sort = "crest"  },
+  { key = "gold",  x = 470, w = 82,  justify = "RIGHT",  label = L.COL_GOLD,  sort = "gold", optional = true },
 }
 
-local PIP_BASE_X = 314
+local PIP_BASE_X = 268
 
 local DIFF_ABBR = {
   [17] = L.DIFF_LFR, [14] = L.DIFF_N, [15] = L.DIFF_H, [16] = L.DIFF_M,
 }
 local function DiffAbbr(id, name)
   return DIFF_ABBR[id or 0] or (name and name:sub(1, 3)) or "?"
-end
-
-local function Abbrev(name)
-  if type(name) ~= "string" or name == "" then return "" end
-  local letters = {}
-  for w in name:gmatch("%S+") do letters[#letters + 1] = w:sub(1, 1) end
-  if #letters >= 2 then return table.concat(letters):upper():sub(1, 4) end
-  return name:sub(1, 4):upper()
 end
 
 -- ---------------------------------------------------------------------------
@@ -223,6 +221,7 @@ local rows = {}
 local groupHeaders = {}
 local detailFrame
 local expandedKey = nil
+local fullVaultCount = 0 -- nº de chars com cofre 3/3/3 (define glow estático vs. pulsante)
 local Refresh -- forward
 
 -- Rótulo de facção localizado (usa as globais do cliente; fallback p/ o valor cru)
@@ -310,12 +309,12 @@ local function CreateRow(parent)
   row.cells.name:SetPoint("TOPLEFT", row, "TOPLEFT", 40, 0)
   row.cells.name:SetWidth(128)
 
-  -- pips do cofre (3 M+ + 3 raide)
+  -- pips do cofre: 9 = 3 M+ | 3 Raide | 3 Delve (trilha Mundo). 2 gaps entre grupos.
   row.pips = {}
-  for i = 1, 6 do
+  for i = 1, 9 do
     local p = row:CreateTexture(nil, "ARTWORK")
     p:SetSize(8, 8)
-    local groupGap = (i > 3) and 8 or 0
+    local groupGap = math.floor((i - 1) / 3) * 8
     local x = PIP_BASE_X + (i - 1) * 11 + groupGap
     p:SetPoint("LEFT", row, "LEFT", x, 0)
     row.pips[i] = p
@@ -333,6 +332,18 @@ local function CreateRow(parent)
     if d.realm then GameTooltip:AddLine(d.realm, 0.7, 0.7, 0.7) end
     if d.updatedAt then
       GameTooltip:AddLine(string.format(L.TT_UPDATED, FormatAgo(time() - d.updatedAt)), 0.6, 0.8, 1)
+    end
+    -- M+ exato (a coluna mostra só "+N"; o rating preciso fica aqui)
+    local mp = d.mplus
+    if type(mp) == "table" then
+      if (mp.rating or 0) > 0 then
+        GameTooltip:AddLine(string.format(L.TT_RATING, mp.rating), 0.7, 0.7, 0.7)
+      end
+      if mp.keystoneLevel then
+        local kt = string.format(L.TT_KEYSTONE, mp.keystoneLevel)
+        if mp.keystoneMap and mp.keystoneMap ~= "" then kt = kt .. " " .. mp.keystoneMap end
+        GameTooltip:AddLine(kt, 0.7, 0.7, 0.7)
+      end
     end
     if self._stale then
       GameTooltip:AddLine(" ")
@@ -408,28 +419,23 @@ local function PopulateRow(row, entry, index)
     row.cells.ilvl:SetText(colored(COLOR_MISSING, L.NONE))
   end
 
-  -- RATING
+  -- M+ (rating + chave fundidos): mostra "+N" da chave colorido pela faixa de
+  -- rating; sem chave mas com rating, mostra o rating. O valor exato vai no tooltip.
   local mp = d.mplus or {}
   local rating = mp.rating or 0
-  if rating > 0 then
-    row.cells.rating:SetText(colored(RatingColor(rating), rating))
-  else
-    row.cells.rating:SetText(colored(COLOR_MISSING, L.NONE))
-  end
-
-  -- CHAVE
   if mp.keystoneLevel then
-    local ab = Abbrev(mp.keystoneMap)
-    local txt = colored(COLOR_PARTIAL, "+" .. mp.keystoneLevel)
-    if ab ~= "" then txt = "|cffbbbbbb" .. ab .. "|r " .. txt end
-    row.cells.key:SetText(txt)
+    row.cells.mplus:SetText(colored(RatingColor(rating), "+" .. mp.keystoneLevel))
+  elseif rating > 0 then
+    row.cells.mplus:SetText(colored(RatingColor(rating), tostring(rating)))
   else
-    row.cells.key:SetText(colored(COLOR_MISSING, L.NONE))
+    row.cells.mplus:SetText(colored(COLOR_MISSING, L.NONE))
   end
 
-  -- COFRE (pips)
+  -- COFRE (9 pips): M+ | Raide | Delve (trilha Mundo). Um alt que só fez delves
+  -- preenche o 3º grupo e deixa de parecer vazio.
   local slotsM = (v and v.mplus and v.mplus.slots) or {}
   local slotsR = (v and v.raid and v.raid.slots) or {}
+  local slotsW = (v and v.world and v.world.slots) or {}
   local function setPip(tex, slot)
     if slot and slot.unlocked then
       tex:SetColorTexture(QC_EPIC[1], QC_EPIC[2], QC_EPIC[3], 1)
@@ -437,39 +443,61 @@ local function PopulateRow(row, entry, index)
       tex:SetColorTexture(0.45, 0.45, 0.50, 0.35)
     end
   end
-  for i = 1, 3 do setPip(row.pips[i], slotsM[i]) end
+  for i = 1, 3 do setPip(row.pips[i],     slotsM[i]) end
   for i = 1, 3 do setPip(row.pips[3 + i], slotsR[i]) end
+  for i = 1, 3 do setPip(row.pips[6 + i], slotsW[i]) end
 
-  -- CRESTS
-  local best
+  -- CREST: indicador de CAP semanal (✓ no cap, senão progresso curto da crest que
+  -- você está enchendo). Os 5 tiers em número ficam no detalhe.
+  local track, bestQty
   if type(d.currencies) == "table" then
     for _, c in ipairs(d.currencies) do
-      if c.kind == "crest" and (c.quantity or 0) > 0 then best = c end
+      if c.kind == "crest" then
+        if (c.weeklyMax or 0) > 0 then
+          if not track
+             or (c.weekly or 0) > (track.weekly or 0)
+             or ((c.weekly or 0) == (track.weekly or 0) and (c.weeklyMax or 0) > (track.weeklyMax or 0)) then
+            track = c
+          end
+        elseif (c.quantity or 0) > 0 and (not bestQty or c.quantity > bestQty.quantity) then
+          bestQty = c
+        end
+      end
     end
   end
-  if best then
-    local short = (best.name and best.name:match("^(%S+)")) or "?"
-    local capped = (best.weeklyMax or 0) > 0 and (best.weekly or 0) >= best.weeklyMax
-    row.cells.crest:SetText(colored(capped and COLOR_GOLD or COLOR_PARTIAL, short .. " " .. (best.quantity or 0)))
+  if track then
+    if (track.weekly or 0) >= (track.weeklyMax or 0) then
+      row.cells.crest:SetText(CHECK_ICON)
+    else
+      row.cells.crest:SetText(colored(COLOR_NEUTRAL, (track.weekly or 0) .. "/" .. (track.weeklyMax or 0)))
+    end
+  elseif bestQty then
+    row.cells.crest:SetText(colored(COLOR_NEUTRAL, tostring(bestQty.quantity)))
   else
     row.cells.crest:SetText(colored(COLOR_MISSING, L.NONE))
   end
 
-  -- OURO
-  local g = FormatGold(d.gold)
-  if g then
-    row.cells.gold:SetText(colored(COLOR_GOLD, g))
+  -- OURO (coluna opcional, escondida por padrão — /kalts gold). Número neutro.
+  if KA.GetShowGold and KA.GetShowGold() then
+    local g = FormatGold(d.gold)
+    row.cells.gold:SetText(g and colored(COLOR_NEUTRAL, g) or colored(COLOR_MISSING, L.NONE))
+    row.cells.gold:Show()
   else
-    row.cells.gold:SetText(colored(COLOR_MISSING, L.NONE))
+    row.cells.gold:Hide()
   end
 
-  -- GLOW dourado: só na(s) linha(s) com Grande Cofre cheio (3/3/3); pulsa em
-  -- loop enquanto cheio, limpa (sem vazar animação) nas demais.
+  -- GLOW dourado: só na(s) linha(s) com Grande Cofre cheio (3/3/3). Com VÁRIAS
+  -- linhas cheias, usa brilho ESTÁTICO (menos ruído de movimento); com 1 só, pulsa.
   local vaultIsFull = KA.IsVaultFull and KA.IsVaultFull(d)
   if row.glow then
     if vaultIsFull then
       row.glow:Show()
-      if row.glowAg and not row.glowAg:IsPlaying() then row.glowAg:Play() end
+      if fullVaultCount and fullVaultCount > 1 then
+        if row.glowAg and row.glowAg:IsPlaying() then row.glowAg:Stop() end
+        row.glow:SetAlpha(0.22)
+      else
+        if row.glowAg and not row.glowAg:IsPlaying() then row.glowAg:Play() end
+      end
     else
       if row.glowAg and row.glowAg:IsPlaying() then row.glowAg:Stop() end
       row.glow:SetAlpha(0)
@@ -487,7 +515,8 @@ local function BuildDetailText(d)
   local function head(s) add(colored(ACCENT, s)) end
   local v = d.vault
 
-  -- GRANDE COFRE
+  -- GRANDE COFRE — ilvl dos slots cheios + marcador neutro nos vazios. SEM repetir
+  -- "falta +N" (o painel "O que falta" no topo já é o destaque acionável → dedup).
   head(L.DETAIL_VAULT)
   local function trackLine(label, t)
     local parts = {}
@@ -496,9 +525,7 @@ local function BuildDetailText(d)
         if s.unlocked then
           parts[#parts + 1] = colored(QC_EPIC, s.ilvl and ("ilvl " .. s.ilvl) or "+")
         else
-          local need = (s.threshold or 0) - (s.progress or 0)
-          if need < 0 then need = 0 end
-          parts[#parts + 1] = colored(COLOR_MISSING, string.format(L.SLOT_NEED, need))
+          parts[#parts + 1] = colored(COLOR_MISSING, "\194\183") -- · slot ainda vazio
         end
       end
     end
@@ -514,46 +541,8 @@ local function BuildDetailText(d)
   if v and v.hasRewards then add("  " .. colored(ACCENT, L.VAULT_HAS_REWARDS)) end
   add(" ")
 
-  -- MÍTICA+ POR MASMORRA
-  head(L.DETAIL_MPLUS)
-  local maps = d.mplusMaps
-  if type(maps) == "table" and #maps > 0 then
-    for _, mapinfo in ipairs(maps) do
-      local icon = ""
-      if type(mapinfo.texture) == "number" and mapinfo.texture > 0 then
-        icon = "|T" .. mapinfo.texture .. ":14:14:0:0:64:64:5:59:5:59|t "
-      end
-      local lvl
-      if (mapinfo.level or 0) > 0 then
-        lvl = colored(COLOR_DONE, "+" .. mapinfo.level)   -- feita esta semana
-      else
-        lvl = colored(COLOR_PARTIAL, L.MPLUS_TODO)         -- falta correr esta semana
-      end
-      add(string.format("  %s|cffe6e6f0%s|r  %s", icon, mapinfo.name or "?", lvl))
-    end
-  else
-    add("  " .. colored(COLOR_MISSING, L.NO_DATA))
-  end
-  add(" ")
-
-  -- LOCKOUTS DE RAIDE
-  head(L.DETAIL_RAID)
-  local raids = d.raids
-  if type(raids) == "table" and #raids > 0 then
-    for _, lk in ipairs(raids) do
-      local total = lk.total or 0
-      local prog = lk.progress or 0
-      local done = total > 0 and prog >= total
-      add(string.format("  |cffe6e6f0%s|r |cff888888(%s)|r  %s",
-        lk.name or "?", lk.difficultyName or DiffAbbr(lk.difficultyId),
-        colored(done and COLOR_DONE or COLOR_PARTIAL, prog .. "/" .. total)))
-    end
-  else
-    add("  " .. colored(COLOR_MISSING, L.TT_NO_RAID))
-  end
-  add(" ")
-
-  -- DELVES (trilha de Delves = trilha Mundo do cofre; + chave do cofre)
+  -- DELVES (promovido pro topo: tier + chave do cofre). A trilha Mundo já aparece
+  -- nos pips/cofre acima, então aqui não repetimos a contagem de slots.
   head(L.DETAIL_DELVES)
   do
     local anyDelve = false
@@ -572,20 +561,56 @@ local function BuildDetailText(d)
           if (c.weeklyMax or 0) > 0 then
             wk = "  |cff888888(" .. (c.weekly or 0) .. "/" .. c.weeklyMax .. " " .. L.TT_CREST_WEEKLY .. ")|r"
           end
-          add(string.format("  |cffcfcfcf%s|r  %s%s", c.name or "?", colored(COLOR_PARTIAL, amount), wk))
+          add(string.format("  |cffcfcfcf%s|r  %s%s", c.name or "?", colored(COLOR_NEUTRAL, amount), wk))
         end
       end
-    end
-    local wt = v and v.world
-    if type(wt) == "table" then
-      anyDelve = true
-      add(string.format("  |cff888888%s  %d/%d|r", L.DELVE_TRACK, wt.filled or 0, wt.total or 3))
     end
     if not anyDelve then add("  " .. colored(COLOR_MISSING, L.DELVE_NONE)) end
   end
   add(" ")
 
-  -- MOEDAS & CRESTS (moedas de delve aparecem na seção Delves acima)
+  -- MÍTICA+ POR MASMORRA
+  head(L.DETAIL_MPLUS)
+  local maps = d.mplusMaps
+  if type(maps) == "table" and #maps > 0 then
+    for _, mapinfo in ipairs(maps) do
+      local icon = ""
+      if type(mapinfo.texture) == "number" and mapinfo.texture > 0 then
+        icon = "|T" .. mapinfo.texture .. ":14:14:0:0:64:64:5:59:5:59|t "
+      end
+      local lvl
+      if (mapinfo.level or 0) > 0 then
+        lvl = colored(COLOR_DONE, "+" .. mapinfo.level)   -- feita esta semana
+      else
+        lvl = colored(COLOR_ACTION, L.MPLUS_TODO)          -- falta correr esta semana
+      end
+      add(string.format("  %s|cffe6e6f0%s|r  %s", icon, mapinfo.name or "?", lvl))
+    end
+  else
+    add("  " .. colored(COLOR_MISSING, L.NO_DATA))
+  end
+  add(" ")
+
+  -- LOCKOUTS DE RAIDE — 1 linha derivada (o lockout mais relevante; os pips de
+  -- Raide do cofre já cobrem o resto). "+N" indica lockouts adicionais.
+  head(L.DETAIL_RAID)
+  local raids = d.raids
+  if type(raids) == "table" and #raids > 0 then
+    local top = raids[1]
+    local total = top.total or 0
+    local prog = top.progress or 0
+    local done = total > 0 and prog >= total
+    local extra = (#raids > 1) and (" |cff888888+" .. (#raids - 1) .. "|r") or ""
+    add(string.format("  |cffe6e6f0%s|r |cff888888(%s)|r  %s%s",
+      top.name or "?", top.difficultyName or DiffAbbr(top.difficultyId),
+      colored(done and COLOR_DONE or COLOR_NEUTRAL, prog .. "/" .. total), extra))
+  else
+    add("  " .. colored(COLOR_MISSING, L.TT_NO_RAID))
+  end
+  add(" ")
+
+  -- MOEDAS & CRESTS (5 tiers; moedas de delve aparecem na seção Delves acima).
+  -- ✓ marca a crest no cap semanal; números em cinza neutro.
   head(L.DETAIL_CURR)
   local currencies = d.currencies
   local anyCurr = false
@@ -597,68 +622,51 @@ local function BuildDetailText(d)
         if (c.max or 0) > 0 then amount = amount .. "/" .. c.max end
         local wk = ""
         if (c.weeklyMax or 0) > 0 then
-          wk = "  |cff888888(" .. (c.weekly or 0) .. "/" .. c.weeklyMax .. " " .. L.TT_CREST_WEEKLY .. ")|r"
+          if (c.weekly or 0) >= c.weeklyMax then
+            wk = "  " .. CHECK_ICON
+          else
+            wk = "  |cff888888(" .. (c.weekly or 0) .. "/" .. c.weeklyMax .. " " .. L.TT_CREST_WEEKLY .. ")|r"
+          end
         end
-        add(string.format("  |cffcfcfcf%s|r  %s%s", c.name or "?", colored(COLOR_PARTIAL, amount), wk))
+        add(string.format("  |cffcfcfcf%s|r  %s%s", c.name or "?", colored(COLOR_NEUTRAL, amount), wk))
       end
     end
   end
   if not anyCurr then add("  " .. colored(COLOR_MISSING, L.NONE)) end
-  add(" ")
 
-  -- SEMANAIS
-  head(L.DETAIL_WEEKLY)
+  -- SEMANAIS — só Conquista (PvP) e somente quando há pontos ganhos (earned>0).
+  -- Catalisador é Warband-wide → mostrado 1x no tooltip do minimapa, não por char.
   local wk = d.weeklies
-  local anyWeekly = false
-  if type(wk) == "table" then
-    if type(wk.conquest) == "table" then
-      anyWeekly = true
-      local cap = wk.conquest.cap or 0
-      local earned = wk.conquest.earned or 0
-      local capped = cap > 0 and earned >= cap
-      add(string.format("  |cffcfcfcf%s|r  %s", L.WEEKLY_CONQUEST,
-        colored(capped and COLOR_GOLD or COLOR_PARTIAL, earned .. (cap > 0 and ("/" .. cap) or ""))))
-    end
-    if type(wk.catalyst) == "table" then
-      anyWeekly = true
-      local q = wk.catalyst.quantity or 0
-      local mx = wk.catalyst.max or 0
-      add(string.format("  |cffcfcfcf%s|r  %s", L.WEEKLY_CATALYST,
-        colored(COLOR_PARTIAL, q .. (mx > 0 and ("/" .. mx) or ""))))
-    end
+  if type(wk) == "table" and type(wk.conquest) == "table" and (wk.conquest.earned or 0) > 0 then
+    local cap = wk.conquest.cap or 0
+    local earned = wk.conquest.earned or 0
+    local capped = cap > 0 and earned >= cap
+    add(" ")
+    head(L.DETAIL_WEEKLY)
+    add(string.format("  |cffcfcfcf%s|r  %s", L.WEEKLY_CONQUEST,
+      capped and CHECK_ICON or colored(COLOR_NEUTRAL, earned .. (cap > 0 and ("/" .. cap) or ""))))
   end
-  -- World bosses mortos nesta semana (some se nenhum saved/API ausente)
-  if type(d.worldBosses) == "table" and #d.worldBosses > 0 then
-    anyWeekly = true
-    local names = {}
-    for _, b in ipairs(d.worldBosses) do
-      if type(b) == "table" and b.name then names[#names + 1] = b.name end
-    end
-    if #names > 0 then
-      add(string.format("  |cffcfcfcf%s|r  %s", L.WEEKLY_WORLDBOSS,
-        colored(COLOR_DONE, table.concat(names, ", "))))
-    end
-  end
-  if not anyWeekly then add("  " .. colored(COLOR_MISSING, L.NO_DATA)) end
-  add(" ")
 
-  -- PROFISSÕES
-  head(L.DETAIL_PROF)
-  local profs = d.professions
-  if type(profs) == "table" and #profs > 0 then
-    for _, p in ipairs(profs) do
-      local extra = {}
-      if type(p.skillLevel) == "number" and (p.maxSkillLevel or 0) > 0 then
-        extra[#extra + 1] = "|cff888888" .. p.skillLevel .. "/" .. p.maxSkillLevel .. "|r"
+  -- PROFISSÕES — atrás de um toggle (OFF por padrão, /kalts prof ou botão no
+  -- detalhe). A dica "abra a profissão" só aparece no estado vazio.
+  if KA.GetShowProfessions and KA.GetShowProfessions() then
+    add(" ")
+    head(L.DETAIL_PROF)
+    local profs = d.professions
+    if type(profs) == "table" and #profs > 0 then
+      for _, p in ipairs(profs) do
+        local extra = {}
+        if type(p.skillLevel) == "number" and (p.maxSkillLevel or 0) > 0 then
+          extra[#extra + 1] = "|cff888888" .. p.skillLevel .. "/" .. p.maxSkillLevel .. "|r"
+        end
+        if type(p.knowledge) == "number" then
+          extra[#extra + 1] = colored(COLOR_NEUTRAL, L.PROF_KNOWLEDGE .. " " .. p.knowledge)
+        end
+        add(string.format("  |cffcfcfcf%s|r  %s", p.name or "?", table.concat(extra, "  ")))
       end
-      if type(p.knowledge) == "number" then
-        extra[#extra + 1] = colored(COLOR_PARTIAL, L.PROF_KNOWLEDGE .. " " .. p.knowledge)
-      end
-      add(string.format("  |cffcfcfcf%s|r  %s", p.name or "?", table.concat(extra, "  ")))
+    else
+      add("  " .. colored(COLOR_MISSING, L.PROF_OPEN_HINT))
     end
-    add("  |cff666666" .. L.PROF_OPEN_HINT .. "|r")
-  else
-    add("  " .. colored(COLOR_MISSING, L.PROF_OPEN_HINT))
   end
 
   return table.concat(lines, "\n")
@@ -704,6 +712,21 @@ local function EnsureDetail()
   df.pnext:SetJustifyH("LEFT")
   df.pnext:SetJustifyV("TOP")
 
+  -- toggle de Profissões (abaixo da coluna esquerda; segue a altura de pnext)
+  df.profBtn = CreateFrame("Button", nil, df)
+  df.profBtn:SetSize(150, 16)
+  df.profBtn:SetPoint("TOPLEFT", df.pnext, "BOTTOMLEFT", 0, -10)
+  local pbt = df.profBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  pbt:SetPoint("LEFT", df.profBtn, "LEFT", 0, 0)
+  pbt:SetJustifyH("LEFT")
+  pbt:SetTextColor(0.6, 0.6, 0.6)
+  df.profBtn.text = pbt
+  df.profBtn:SetScript("OnClick", function()
+    if KA.ToggleProfessions then KA.ToggleProfessions() end
+  end)
+  df.profBtn:SetScript("OnEnter", function(self) self.text:SetTextColor(1, 1, 1) end)
+  df.profBtn:SetScript("OnLeave", function(self) self.text:SetTextColor(0.6, 0.6, 0.6) end)
+
   -- corpo (direita) — largura definida explicitamente em PopulateDetail
   df.body = df:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   df.body:SetPoint("TOPLEFT", df, "TOPLEFT", 188, -12)
@@ -737,12 +760,20 @@ local function PopulateDetail(entry)
   if #nexts == 0 then
     df.pnext:SetText(colored(COLOR_DONE, L.NEXT_DONE))
   else
-    local out = { colored(ACCENT, L.NEXT_TITLE) }
+    -- destaque acionável: laranja (não é o dourado reservado a recompensa pronta)
+    local out = { colored(COLOR_ACTION, L.NEXT_TITLE) }
     for _, na in ipairs(nexts) do
       out[#out + 1] = "  |cffcfcfcf" .. (na.track or "?") .. "|r  " ..
-        colored(COLOR_PARTIAL, string.format(L.NEXT_LINE, na.need or 0, na.slot or 0))
+        colored(COLOR_ACTION, string.format(L.NEXT_LINE, na.need or 0, na.slot or 0))
     end
     df.pnext:SetText(table.concat(out, "\n"))
+  end
+
+  -- toggle de Profissões (detalhe enxuto: OFF por padrão)
+  if df.profBtn then
+    local on = KA.GetShowProfessions and KA.GetShowProfessions()
+    df.profBtn.text:SetText((on and "- " or "+ ") .. L.DETAIL_PROF)
+    df.profBtn.text:SetTextColor(0.6, 0.6, 0.6)
   end
 
   -- largura do corpo derivada do scrollChild (independe da âncora do frame de detalhe)
@@ -755,6 +786,7 @@ local function PopulateDetail(entry)
   local leftH = 48 + 6 + (df.pname:GetStringHeight() or 12)
               + 4 + (df.pmeta:GetStringHeight() or 10)
               + 8 + (df.pnext:GetStringHeight() or 10)
+              + 10 + 16 -- toggle de Profissões
   local h = math.max(bodyH, leftH) + 28
   df:SetHeight(h)
   return h
@@ -768,11 +800,14 @@ local function UpdateHeaders()
   local sort = KA.GetSort and KA.GetSort() or nil
   for key, h in pairs(frame.headers) do
     local label = h.baseLabel or key
-    if sort and sort.key == key then
+    if sort and sort.key == (h.sortKey or key) then
       label = label .. (sort.dir == "asc" and " |TInterface\\Buttons\\Arrow-Up-Up:14:14|t" or " |TInterface\\Buttons\\Arrow-Down-Up:14:14|t")
     end
     if h.text then h.text:SetText(label) end
   end
+  -- coluna de ouro é opcional (toggle OFF por padrão)
+  local gh = frame.headers.gold
+  if gh then gh:SetShown(KA.GetShowGold and KA.GetShowGold() or false) end
 end
 
 -- ---------------------------------------------------------------------------
@@ -806,18 +841,24 @@ Refresh = function()
   local chars = KA.GetChars()
   local n = #chars
 
-  -- resumo consolidado da conta (cofres prontos / no cap de crests / ouro total)
+  -- resumo consolidado da conta (cofres prontos / no cap de crests / a coletar).
+  -- O destaque dourado fica pro segmento "X com recompensa a coletar" (acionável).
   if frame.summary then
     local oks, s = pcall(KA.GetAccountSummary)
     if not oks or type(s) ~= "table" then
       s = { full = 0, rewards = 0, total = 0, crestCapped = 0, goldCopper = 0 }
     end
+    fullVaultCount = s.full or 0
     if (s.total or 0) == 0 then
       frame.summary:SetText("|cff888888" .. L.SUMMARY_EMPTY .. "|r")
     else
-      local goldStr = FormatGold(s.goldCopper) or "0g"
-      frame.summary:SetText(string.format("|cffcfcfcf" .. L.SUMMARY_ACCT .. "|r",
-        s.full or 0, s.total or 0, s.crestCapped or 0, s.total or 0, goldStr))
+      local rewards = s.rewards or 0
+      local rewardSeg = (rewards > 0)
+        and colored(ACCENT, string.format(L.SUMMARY_REWARDS, rewards))
+        or  colored(COLOR_NEUTRAL, string.format(L.SUMMARY_REWARDS, rewards))
+      frame.summary:SetText(
+        string.format("|cffcfcfcf" .. L.SUMMARY_ACCT .. "|r", s.full or 0, s.total or 0, s.crestCapped or 0)
+        .. "   \194\183   " .. rewardSeg)
     end
   end
 
@@ -1081,11 +1122,15 @@ local function BuildFrame()
     fs:SetText(h.baseLabel)
     if col.sort then
       local sortKey = col.sort
+      h.sortKey = sortKey -- a seta de ordenação casa por sortKey (ex: coluna "mplus" ordena por "rating")
+      local isVault = (col.key == "vault")
       h:SetScript("OnClick", function() if KA.SetSort then KA.SetSort(sortKey) end end)
       h:SetScript("OnEnter", function(self)
         self.text:SetTextColor(1, 1, 1)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
         GameTooltip:SetText(L.TT_SORT_HINT, 0.8, 0.8, 0.8)
+        -- explica os 3 grupos de pips do cofre: M+ | Raide | Delve
+        if isVault then GameTooltip:AddLine(L.VAULT_HEADER_HINT, 0.6, 0.6, 0.6) end
         GameTooltip:Show()
       end)
       h:SetScript("OnLeave", function(self)
@@ -1131,9 +1176,9 @@ local function BuildFrame()
     if self.elapsed < 1 then return end
     self.elapsed = 0
     local info = KA.GetResetInfo()
-    self.countdown:SetText(string.format("|cffaaaaaa%s|r %s   |cffaaaaaa%s|r %s",
-      L.RESET_WEEKLY, FormatCountdown(info.weeklySeconds),
-      L.RESET_DAILY, FormatCountdown(info.dailySeconds)))
+    -- só o reset SEMANAL (o diário foi cortado); valor em branco vivo p/ destaque.
+    self.countdown:SetText(string.format("|cff888888%s|r |cffffffff%s|r",
+      L.RESET_WEEKLY, FormatCountdown(info.weeklySeconds)))
   end)
 
   Refresh()
@@ -1242,6 +1287,17 @@ function KA.InitMinimap()
       if (s.rewards or 0) > 0 then
         GameTooltip:AddLine(string.format(L.MM_REWARDS, s.rewards), 1, 0.82, 0)
       end
+    end
+    -- Catalisador (Warband-wide: igual em todo char → mostrado 1x aqui)
+    local cat = KA.GetCatalyst and KA.GetCatalyst() or nil
+    if type(cat) == "table" and ((cat.max or 0) > 0 or (cat.quantity or 0) > 0) then
+      GameTooltip:AddLine(string.format(L.MM_CATALYST, cat.quantity or 0, cat.max or 0), 0.70, 0.70, 0.80)
+    end
+    -- Ouro total da conta (a coluna por char é opcional/escondida)
+    local okA, acc = pcall(KA.GetAccountSummary)
+    if okA and type(acc) == "table" and (acc.goldCopper or 0) > 0 then
+      local gtot = FormatGold(acc.goldCopper)
+      if gtot then GameTooltip:AddLine(string.format(L.MM_GOLD, gtot), 0.80, 0.80, 0.62) end
     end
     GameTooltip:AddLine(L.MM_HINT, 0.6, 0.6, 0.6)
     GameTooltip:Show()

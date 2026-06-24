@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.5.0
+
+**Português**
+
+- **Novo: Delves & chave do cofre** — seção própria no painel de detalhe com o tier de delve do cofre da semana, a Chave do Cofre Restaurada / Fragmentos de Chave e a trilha de Delves do Grande Cofre (trilha Mundo).
+- **Novo: lembrete ao logar** — alguns segundos após entrar, avisa no chat se há personagens com recompensa de Cofre pra coletar ou com objetivos faltando a menos de 24h do reset. Liga/desliga com `/kalts reminder` (ligado por padrão).
+- **Novo: resumo consolidado da conta** no topo da janela — cofres prontos, personagens no cap de crests e ouro total.
+- **Novo: agrupar por reino ou facção** — botão de 3 estados (não agrupar / reino / facção), com a ordenação por coluna preservada dentro de cada grupo. Também em `/kalts group`.
+- **Novo: chefes mundiais** — a seção Semanais mostra os chefes mundiais já derrotados na semana.
+- **Novo: atalho para o KrononBags** — clique-direito num personagem traz "Abrir inventário (KrononBags)" quando o KrononBags está instalado.
+
+**English**
+
+- **New: Delves & coffer key** — dedicated section in the detail panel with this week's vault delve tier, the Restored Coffer Key / Coffer Key Shards and the Great Vault's Delve track (World track).
+- **New: login reminder** — a few seconds after logging in, a short chat notice if any character has a vault reward to collect or objectives left within 24h of reset. Toggle with `/kalts reminder` (on by default).
+- **New: consolidated account summary** at the top of the window — vaults ready, characters at crest cap and total gold.
+- **New: group by realm or faction** — 3-state button (off / realm / faction), with column sorting preserved within each group. Also `/kalts group`.
+- **New: world bosses** — the Weeklies section shows the world bosses already defeated this week.
+- **New: KrononBags shortcut** — right-clicking a character offers "Open bags (KrononBags)" when KrononBags is installed.
+
+**Español**
+
+- **Nuevo: Profundidades y llave de la cámara** — sección propia en el panel de detalle con el nivel de profundidad de la cámara de la semana, la Llave de Cámara Restaurada / Fragmentos de Llave y la vía de Profundidades de la Gran Cámara (vía Mundo).
+- **Nuevo: recordatorio al iniciar sesión** — unos segundos tras entrar, un aviso breve en el chat si algún personaje tiene recompensa de cámara por reclamar u objetivos pendientes a menos de 24h del reinicio. Se activa/desactiva con `/kalts reminder` (activado por defecto).
+- **Nuevo: resumen consolidado de la cuenta** en la parte superior de la ventana — cámaras listas, personajes en el tope de crests y oro total.
+- **Nuevo: agrupar por reino o facción** — botón de 3 estados (no agrupar / reino / facción), conservando el orden por columna dentro de cada grupo. También con `/kalts group`.
+- **Nuevo: jefes de mundo** — la sección Semanales muestra los jefes de mundo ya derrotados esta semana.
+- **Nuevo: acceso directo a KrononBags** — el clic derecho sobre un personaje ofrece "Abrir inventario (KrononBags)" cuando KrononBags está instalado.
+
 ## 0.4.0
 
 **Português**

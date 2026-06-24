@@ -104,6 +104,21 @@ local EN = {
   SLOT_NEED        = "needs +%d",
   CLICK_EXPAND     = "Click a row to expand  \194\183  right-click for options",
   NO_DATA          = "No data yet — log in on this character.",
+  DETAIL_DELVES    = "Delves",
+  DELVE_TIER       = "Vault delve tier",
+  DELVE_TRACK      = "Delve track (vault World slot)",
+  DELVE_NONE       = "No delve data yet — log in on this character.",
+  WEEKLY_WORLDBOSS = "World bosses",
+  SUMMARY_ACCT     = "%d/%d vaults  \194\183  %d/%d at cap  \194\183  %s gold",
+  GROUP_BTN        = "Group: %s",
+  GROUP_NONE       = "off",
+  GROUP_REALM      = "realm",
+  GROUP_FACTION    = "faction",
+  MENU_OPEN_BAGS   = "Open bags (KrononBags)",
+  REMINDER_VAULT   = "%d character(s) with a vault reward to collect!",
+  REMINDER_RESET   = "%d character(s) with vault objectives left before reset (<24h)",
+  REMINDER_ON      = "login reminder ON.",
+  REMINDER_OFF     = "login reminder OFF.",
 }
 
 local PT = {
@@ -166,6 +181,21 @@ local PT = {
   SLOT_NEED        = "falta +%d",
   CLICK_EXPAND     = "Clique numa linha para expandir  \194\183  clique-direito: opções",
   NO_DATA          = "Sem dados ainda — logue neste personagem.",
+  DETAIL_DELVES    = "Delves",
+  DELVE_TIER       = "Tier de delve do cofre",
+  DELVE_TRACK      = "Trilha de Delves (slot Mundo do cofre)",
+  DELVE_NONE       = "Sem dados de delve ainda — logue neste personagem.",
+  WEEKLY_WORLDBOSS = "Chefes mundiais",
+  SUMMARY_ACCT     = "%d/%d cofres  \194\183  %d/%d no cap  \194\183  %s ouro",
+  GROUP_BTN        = "Agrupar: %s",
+  GROUP_NONE       = "não",
+  GROUP_REALM      = "reino",
+  GROUP_FACTION    = "facção",
+  MENU_OPEN_BAGS   = "Abrir inventário (KrononBags)",
+  REMINDER_VAULT   = "%d personagem(ns) com recompensa de Cofre pra coletar!",
+  REMINDER_RESET   = "%d personagem(ns) com objetivos do Cofre faltando antes do reset (<24h)",
+  REMINDER_ON      = "lembrete de login LIGADO.",
+  REMINDER_OFF     = "lembrete de login DESLIGADO.",
 }
 
 local ES = {
@@ -228,6 +258,21 @@ local ES = {
   SLOT_NEED        = "falta +%d",
   CLICK_EXPAND     = "Clic en una fila para expandir  \194\183  clic derecho: opciones",
   NO_DATA          = "Aún sin datos — entra con este personaje.",
+  DETAIL_DELVES    = "Profundidades",
+  DELVE_TIER       = "Nivel de profundidad de la cámara",
+  DELVE_TRACK      = "Vía de Profundidades (ranura Mundo de la cámara)",
+  DELVE_NONE       = "Aún sin datos de profundidades — entra con este personaje.",
+  WEEKLY_WORLDBOSS = "Jefes de mundo",
+  SUMMARY_ACCT     = "%d/%d cámaras  \194\183  %d/%d en tope  \194\183  %s oro",
+  GROUP_BTN        = "Agrupar: %s",
+  GROUP_NONE       = "no",
+  GROUP_REALM      = "reino",
+  GROUP_FACTION    = "facción",
+  MENU_OPEN_BAGS   = "Abrir inventario (KrononBags)",
+  REMINDER_VAULT   = "¡%d personaje(s) con recompensa de cámara por reclamar!",
+  REMINDER_RESET   = "%d personaje(s) con objetivos de cámara pendientes antes del reinicio (<24h)",
+  REMINDER_ON      = "recordatorio de inicio de sesión ACTIVADO.",
+  REMINDER_OFF     = "recordatorio de inicio de sesión DESACTIVADO.",
 }
 
 -- Base EN + overlay do locale do cliente; esMX cai em esES; chave inexistente
@@ -283,6 +328,8 @@ local function InitDB()
   KrononAltsDB.version = 2
   if type(KrononAltsDB.minimap) ~= "table" then KrononAltsDB.minimap = { angle = 215, hide = false } end
   if KrononAltsDB.hideCompleted == nil then KrononAltsDB.hideCompleted = false end
+  if KrononAltsDB.loginReminder == nil then KrononAltsDB.loginReminder = true end
+  if type(KrononAltsDB.groupBy) ~= "string" then KrononAltsDB.groupBy = "none" end
   -- KrononAltsDB.sort = { key, dir } — nil = ordenação padrão (logado primeiro)
   DB = KrononAltsDB
 end
@@ -628,6 +675,51 @@ local function SnapshotProfessions()
   return out
 end
 
+-- Facção do char (Alliance/Horde/Neutral) — usada no agrupamento. Defensivo.
+local function SnapshotFaction()
+  if type(UnitFactionGroup) ~= "function" then return nil end
+  local ok, f = pcall(UnitFactionGroup, "player")
+  if ok and type(f) == "string" and f ~= "" then return f end
+  return nil
+end
+
+-- World bosses MORTOS nesta semana (lockout salvo). GetSavedWorldBossInfo só
+-- devolve os que você já está salvo (matou); não sabemos os disponíveis, então
+-- listamos apenas os concluídos. Totalmente defensivo.
+local function SnapshotWorldBosses()
+  local out = {}
+  if type(GetNumSavedWorldBosses) ~= "function" or type(GetSavedWorldBossInfo) ~= "function" then
+    return out
+  end
+  local okN, n = pcall(GetNumSavedWorldBosses)
+  if not okN or type(n) ~= "number" then return out end
+  for i = 1, n do
+    local ok, name, id = pcall(GetSavedWorldBossInfo, i)
+    if ok and type(name) == "string" and name ~= "" then
+      out[#out + 1] = { name = name, id = id }
+    end
+  end
+  return out
+end
+
+-- Delves: a trilha de Delves do Grande Cofre é a trilha "Mundo" (World). O maior
+-- tier desta semana é derivado do maior `level` entre os slots Mundo DESBLOQUEADOS
+-- (guarda contra confundir tier de delve com ilvl: tier de delve <= 20). As moedas
+-- da chave do cofre (Restored Coffer Key / Coffer Key Shards) já entram em
+-- rec.currencies (kind="delve"). Defensivo: sem dados, fica tier 0 e a UI esconde.
+local function SnapshotDelves(vault)
+  local out = { tier = 0 }
+  if type(vault) == "table" and type(vault.world) == "table" and type(vault.world.slots) == "table" then
+    for _, s in ipairs(vault.world.slots) do
+      if s and s.unlocked and type(s.level) == "number"
+         and s.level > 0 and s.level <= 20 and s.level > out.tier then
+        out.tier = s.level
+      end
+    end
+  end
+  return out
+end
+
 -- ---------------------------------------------------------------------------
 -- Zeragem (reset semanal e virada de season)
 -- ---------------------------------------------------------------------------
@@ -644,6 +736,9 @@ local function ZeroWeekly(c)
       if type(cur) == "table" then cur.weekly = 0 end
     end
   end
+  -- world bosses e tier de delve da semana zeram no reset
+  c.worldBosses = {}
+  if type(c.delves) == "table" then c.delves.tier = 0 end
 end
 
 local function ZeroSeason(c)
@@ -708,6 +803,9 @@ local function Snapshot()
   rec.mplus = SnapshotMythicPlus()
   rec.raids = SnapshotRaids()
   rec.currencies = SnapshotCurrencies()
+  rec.worldBosses = SnapshotWorldBosses()
+  rec.delves = SnapshotDelves(rec.vault)
+  local faction = SnapshotFaction(); if faction then rec.faction = faction end
 
   -- Campos que dependem de dados que podem não estar carregados ainda:
   -- só sobrescrevem o snapshot anterior quando há valor novo (não zeram o alt).
@@ -790,6 +888,45 @@ local function crestSum(d)
     end
   end
   return s
+end
+
+-- "No cap de crests": atingiu o teto SEMANAL de pelo menos uma crest rastreada.
+local function crestCapped(d)
+  if type(d.currencies) ~= "table" then return false end
+  for _, c in ipairs(d.currencies) do
+    if c.kind == "crest" and (c.weeklyMax or 0) > 0 and (c.weekly or 0) >= c.weeklyMax then
+      return true
+    end
+  end
+  return false
+end
+
+-- Consolidado da CONTA p/ a linha-resumo do topo: cofres cheios, recompensas
+-- pendentes, chars no cap de crests e ouro total (em cobre). Defensivo.
+function KA.GetAccountSummary()
+  local out = { full = 0, rewards = 0, total = 0, crestCapped = 0, goldCopper = 0 }
+  if DB and DB.chars then
+    for _, c in pairs(DB.chars) do
+      if type(c) == "table" then
+        out.total = out.total + 1
+        if vaultFull(c) then out.full = out.full + 1 end
+        if c.vault and c.vault.hasRewards then out.rewards = out.rewards + 1 end
+        if crestCapped(c) then out.crestCapped = out.crestCapped + 1 end
+        if type(c.gold) == "number" and c.gold > 0 then out.goldCopper = out.goldCopper + c.gold end
+      end
+    end
+  end
+  return out
+end
+
+-- Agrupamento da lista (3 estados): "none" | "realm" | "faction". Persistido.
+function KA.GetGroupBy() return (DB and DB.groupBy) or "none" end
+
+function KA.CycleGroupBy()
+  if not DB then return end
+  local cur = DB.groupBy or "none"
+  DB.groupBy = (cur == "none" and "realm") or (cur == "realm" and "faction") or "none"
+  KA.bus:Fire()
 end
 
 local function vaultFilledSum(d)
@@ -1048,6 +1185,31 @@ local function RequestData()
   if type(RequestRaidInfo) == "function" then pcall(RequestRaidInfo) end
 end
 
+-- Lembrete no login (1x por sessão, alguns segundos após logar): avisa se algum
+-- char tem recompensa de Cofre pendente ou está a <24h do reset com objetivos
+-- faltando. Desligável (DB.loginReminder). Totalmente defensivo.
+local reminderDone = false
+local function LoginReminder()
+  if reminderDone then return end
+  reminderDone = true
+  if not DB or DB.loginReminder == false then return end
+  local oks, s = pcall(KA.GetAccountSummary)
+  if not oks or type(s) ~= "table" then return end
+  local msgs = {}
+  if (s.rewards or 0) > 0 then
+    msgs[#msgs + 1] = string.format(L.REMINDER_VAULT, s.rewards)
+  end
+  local w = GetWeeklySeconds()
+  if w > 0 and w < 86400 and DB.chars then
+    local missing = 0
+    for _, c in pairs(DB.chars) do
+      if type(c) == "table" and not vaultFull(c) then missing = missing + 1 end
+    end
+    if missing > 0 then msgs[#msgs + 1] = string.format(L.REMINDER_RESET, missing) end
+  end
+  if #msgs > 0 then print(KA_PREFIX .. table.concat(msgs, "  ")) end
+end
+
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("PLAYER_LOGIN")
@@ -1070,6 +1232,9 @@ f:SetScript("OnEvent", function(_, event, arg1)
     RequestData()
     ScheduleSnapshot()
     if KA.InitMinimap then pcall(KA.InitMinimap) end
+    if C_Timer and C_Timer.After then
+      C_Timer.After(8, function() pcall(LoginReminder) end)
+    end
   elseif event == "PLAYER_LOGOUT" then
     pcall(Snapshot)
   else
@@ -1090,6 +1255,15 @@ SlashCmdList["KRONONALTS"] = function(msg)
     return
   elseif msg == "curr" or msg == "currency" or msg == "currencies" then
     KA.PrintCurrencies()
+    return
+  elseif msg == "reminder" or msg == "lembrete" or msg == "recordatorio" then
+    if DB then
+      DB.loginReminder = not (DB.loginReminder ~= false)
+      print(KA_PREFIX .. (DB.loginReminder and L.REMINDER_ON or L.REMINDER_OFF))
+    end
+    return
+  elseif msg == "group" or msg == "agrupar" or msg == "grupo" then
+    if KA.CycleGroupBy then KA.CycleGroupBy() end
     return
   end
   if KA.Toggle then KA.Toggle() end

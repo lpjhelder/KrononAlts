@@ -73,6 +73,7 @@ end
 -- Layout
 -- ---------------------------------------------------------------------------
 local ROW_H   = 24
+local GROUP_H = 20  -- altura do header de grupo (agrupar por reino/facção)
 local FRAME_W = 600
 local FRAME_H = 444
 local TOP_TITLE   = 26  -- altura da titlebar
@@ -196,6 +197,12 @@ local function ShowCharMenu(anchor, entry)
       root:CreateButton(L.MENU_SET_NICK, function()
         StaticPopup_Show("KRONONALTS_NICK", label, nil, { key = entry.key })
       end)
+      -- Atalho p/ o KrononBags (só aparece se o addon estiver presente)
+      if type(KrononBags) == "table" and type(KrononBags.Toggle) == "function" then
+        root:CreateButton(L.MENU_OPEN_BAGS, function()
+          pcall(KrononBags.Toggle)
+        end)
+      end
       if not entry.isCurrent then
         root:CreateButton(L.MENU_REMOVE, function()
           StaticPopup_Show("KRONONALTS_REMOVE", label, nil, entry.key)
@@ -213,9 +220,28 @@ end
 local frame
 local scrollChild
 local rows = {}
+local groupHeaders = {}
 local detailFrame
 local expandedKey = nil
 local Refresh -- forward
+
+-- Rótulo de facção localizado (usa as globais do cliente; fallback p/ o valor cru)
+local FACTION_LABEL = {
+  Alliance = FACTION_ALLIANCE or "Alliance",
+  Horde    = FACTION_HORDE or "Horde",
+}
+
+-- Chave/rótulo do grupo de um char conforme o modo ("realm"/"faction")
+local function GroupKeyLabel(d, mode)
+  if mode == "realm" then
+    local r = d.realm or "?"
+    return r, r
+  elseif mode == "faction" then
+    local fac = d.faction or "?"
+    return fac, (FACTION_LABEL[fac] or fac)
+  end
+  return nil, nil
+end
 
 -- ---------------------------------------------------------------------------
 -- Criação de uma linha (pool)
@@ -527,22 +553,57 @@ local function BuildDetailText(d)
   end
   add(" ")
 
-  -- MOEDAS & CRESTS
+  -- DELVES (trilha de Delves = trilha Mundo do cofre; + chave do cofre)
+  head(L.DETAIL_DELVES)
+  do
+    local anyDelve = false
+    local dv = d.delves
+    if type(dv) == "table" and (dv.tier or 0) > 0 then
+      anyDelve = true
+      add(string.format("  |cffcfcfcf%s|r  %s", L.DELVE_TIER, colored(COLOR_DONE, tostring(dv.tier))))
+    end
+    if type(d.currencies) == "table" then
+      for _, c in ipairs(d.currencies) do
+        if c.kind == "delve" then
+          anyDelve = true
+          local amount = tostring(c.quantity or 0)
+          if (c.max or 0) > 0 then amount = amount .. "/" .. c.max end
+          local wk = ""
+          if (c.weeklyMax or 0) > 0 then
+            wk = "  |cff888888(" .. (c.weekly or 0) .. "/" .. c.weeklyMax .. " " .. L.TT_CREST_WEEKLY .. ")|r"
+          end
+          add(string.format("  |cffcfcfcf%s|r  %s%s", c.name or "?", colored(COLOR_PARTIAL, amount), wk))
+        end
+      end
+    end
+    local wt = v and v.world
+    if type(wt) == "table" then
+      anyDelve = true
+      add(string.format("  |cff888888%s  %d/%d|r", L.DELVE_TRACK, wt.filled or 0, wt.total or 3))
+    end
+    if not anyDelve then add("  " .. colored(COLOR_MISSING, L.DELVE_NONE)) end
+  end
+  add(" ")
+
+  -- MOEDAS & CRESTS (moedas de delve aparecem na seção Delves acima)
   head(L.DETAIL_CURR)
   local currencies = d.currencies
-  if type(currencies) == "table" and #currencies > 0 then
+  local anyCurr = false
+  if type(currencies) == "table" then
     for _, c in ipairs(currencies) do
-      local amount = tostring(c.quantity or 0)
-      if (c.max or 0) > 0 then amount = amount .. "/" .. c.max end
-      local wk = ""
-      if (c.weeklyMax or 0) > 0 then
-        wk = "  |cff888888(" .. (c.weekly or 0) .. "/" .. c.weeklyMax .. " " .. L.TT_CREST_WEEKLY .. ")|r"
+      if c.kind ~= "delve" then
+        anyCurr = true
+        local amount = tostring(c.quantity or 0)
+        if (c.max or 0) > 0 then amount = amount .. "/" .. c.max end
+        local wk = ""
+        if (c.weeklyMax or 0) > 0 then
+          wk = "  |cff888888(" .. (c.weekly or 0) .. "/" .. c.weeklyMax .. " " .. L.TT_CREST_WEEKLY .. ")|r"
+        end
+        add(string.format("  |cffcfcfcf%s|r  %s%s", c.name or "?", colored(COLOR_PARTIAL, amount), wk))
       end
-      add(string.format("  |cffcfcfcf%s|r  %s%s", c.name or "?", colored(COLOR_PARTIAL, amount), wk))
     end
-  else
-    add("  " .. colored(COLOR_MISSING, L.NONE))
   end
+  if not anyCurr then add("  " .. colored(COLOR_MISSING, L.NONE)) end
   add(" ")
 
   -- SEMANAIS
@@ -564,6 +625,18 @@ local function BuildDetailText(d)
       local mx = wk.catalyst.max or 0
       add(string.format("  |cffcfcfcf%s|r  %s", L.WEEKLY_CATALYST,
         colored(COLOR_PARTIAL, q .. (mx > 0 and ("/" .. mx) or ""))))
+    end
+  end
+  -- World bosses mortos nesta semana (some se nenhum saved/API ausente)
+  if type(d.worldBosses) == "table" and #d.worldBosses > 0 then
+    anyWeekly = true
+    local names = {}
+    for _, b in ipairs(d.worldBosses) do
+      if type(b) == "table" and b.name then names[#names + 1] = b.name end
+    end
+    if #names > 0 then
+      add(string.format("  |cffcfcfcf%s|r  %s", L.WEEKLY_WORLDBOSS,
+        colored(COLOR_DONE, table.concat(names, ", "))))
     end
   end
   if not anyWeekly then add("  " .. colored(COLOR_MISSING, L.NO_DATA)) end
@@ -703,6 +776,27 @@ local function UpdateHeaders()
 end
 
 -- ---------------------------------------------------------------------------
+-- Header de grupo (pool) — usado ao agrupar por reino/facção
+-- ---------------------------------------------------------------------------
+local function CreateGroupHeader(parent)
+  local g = CreateFrame("Frame", nil, parent)
+  g:SetHeight(GROUP_H)
+  g.bg = g:CreateTexture(nil, "BACKGROUND")
+  g.bg:SetAllPoints()
+  g.bg:SetColorTexture(1, 1, 1, 0.04)
+  g.line = g:CreateTexture(nil, "ARTWORK")
+  g.line:SetHeight(1)
+  g.line:SetPoint("BOTTOMLEFT", g, "BOTTOMLEFT", 4, 0)
+  g.line:SetPoint("BOTTOMRIGHT", g, "BOTTOMRIGHT", -4, 0)
+  g.line:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 0.25)
+  g.text = g:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  g.text:SetPoint("LEFT", g, "LEFT", 10, 0)
+  g.text:SetJustifyH("LEFT")
+  g.text:SetTextColor(ACCENT[1], ACCENT[2], ACCENT[3])
+  return g
+end
+
+-- ---------------------------------------------------------------------------
 -- Refresh
 -- ---------------------------------------------------------------------------
 Refresh = function()
@@ -712,16 +806,23 @@ Refresh = function()
   local chars = KA.GetChars()
   local n = #chars
 
-  -- resumo
+  -- resumo consolidado da conta (cofres prontos / no cap de crests / ouro total)
   if frame.summary then
-    local s = KA.GetCounts and KA.GetCounts() or { full = 0, rewards = 0, total = 0 }
+    local oks, s = pcall(KA.GetAccountSummary)
+    if not oks or type(s) ~= "table" then
+      s = { full = 0, rewards = 0, total = 0, crestCapped = 0, goldCopper = 0 }
+    end
     if (s.total or 0) == 0 then
       frame.summary:SetText("|cff888888" .. L.SUMMARY_EMPTY .. "|r")
     else
-      frame.summary:SetText(string.format("|cffcfcfcf" .. L.SUMMARY .. "|r",
-        s.full or 0, s.total or 0, s.rewards or 0, s.total or 0))
+      local goldStr = FormatGold(s.goldCopper) or "0g"
+      frame.summary:SetText(string.format("|cffcfcfcf" .. L.SUMMARY_ACCT .. "|r",
+        s.full or 0, s.total or 0, s.crestCapped or 0, s.total or 0, goldStr))
     end
   end
+
+  -- mantém o rótulo do botão de agrupar em sincronia
+  if frame.groupBtn and frame.groupBtn.refresh then frame.groupBtn.refresh() end
 
   -- largura do scrollChild
   local sw = (frame.scroll and frame.scroll:GetWidth()) or (FRAME_W - 34)
@@ -736,34 +837,76 @@ Refresh = function()
 
   if detailFrame then detailFrame:Hide() end
 
-  local y = 0
-  for i = 1, n do
-    local entry = chars[i]
-    local row = rows[i]
-    if not row then row = CreateRow(scrollChild); rows[i] = row end
-    PopulateRow(row, entry, i)
-    row:ClearAllPoints()
-    row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -y)
-    row:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, -y)
-    row:Show()
-    y = y + ROW_H
+  -- monta a lista de exibição: sem agrupar = só chars; agrupando = headers + chars.
+  -- A ordenação por coluna (KA.GetChars) é preservada DENTRO de cada grupo; a ordem
+  -- dos grupos segue a 1ª aparição na lista já ordenada.
+  local mode = (KA.GetGroupBy and KA.GetGroupBy()) or "none"
+  local display = {}
+  if mode ~= "none" then
+    local order, bucket = {}, {}
+    for i = 1, n do
+      local entry = chars[i]
+      local gk, gl = GroupKeyLabel(entry.data, mode)
+      gk = gk or "?"
+      if not bucket[gk] then
+        bucket[gk] = { label = gl or gk, items = {} }
+        order[#order + 1] = gk
+      end
+      local b = bucket[gk]
+      b.items[#b.items + 1] = entry
+    end
+    for _, gk in ipairs(order) do
+      local b = bucket[gk]
+      display[#display + 1] = { kind = "header", label = b.label, count = #b.items }
+      for _, e in ipairs(b.items) do display[#display + 1] = { kind = "char", entry = e } end
+    end
+  else
+    for i = 1, n do display[#display + 1] = { kind = "char", entry = chars[i] } end
+  end
 
-    if expandedKey == entry.key then
-      local h = PopulateDetail(entry)
-      detailFrame:ClearAllPoints()
-      detailFrame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -y)
-      detailFrame:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, -y)
-      detailFrame:Show()
-      y = y + (h or 0)
+  local y = 0
+  local ri, hi = 0, 0
+  for _, item in ipairs(display) do
+    if item.kind == "header" then
+      hi = hi + 1
+      local gh = groupHeaders[hi]
+      if not gh then gh = CreateGroupHeader(scrollChild); groupHeaders[hi] = gh end
+      gh.text:SetText(string.format("%s  |cff888888(%d)|r", item.label or "?", item.count or 0))
+      gh:ClearAllPoints()
+      gh:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -y)
+      gh:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, -y)
+      gh:Show()
+      y = y + GROUP_H
+    else
+      local entry = item.entry
+      ri = ri + 1
+      local row = rows[ri]
+      if not row then row = CreateRow(scrollChild); rows[ri] = row end
+      PopulateRow(row, entry, ri)
+      row:ClearAllPoints()
+      row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -y)
+      row:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, -y)
+      row:Show()
+      y = y + ROW_H
+
+      if expandedKey == entry.key then
+        local h = PopulateDetail(entry)
+        detailFrame:ClearAllPoints()
+        detailFrame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -y)
+        detailFrame:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, -y)
+        detailFrame:Show()
+        y = y + (h or 0)
+      end
     end
   end
-  for i = n + 1, #rows do
+  for i = ri + 1, #rows do
     local r = rows[i]
     r:Hide()
     -- para a animação de glow das linhas recicladas/ocultas (evita vazamento)
     if r.glowAg and r.glowAg:IsPlaying() then r.glowAg:Stop() end
     if r.glow then r.glow:Hide() end
   end
+  for i = hi + 1, #groupHeaders do groupHeaders[i]:Hide() end
 
   if frame.empty then frame.empty:SetShown(n == 0) end
   scrollChild:SetHeight(math.max(y, 1))
@@ -798,6 +941,7 @@ local function BuildFrame()
   frame = CreateFrame("Frame", "KrononAltsFrame", UIParent, "BackdropTemplate")
   frame:SetSize(FRAME_W, FRAME_H)
   frame:SetFrameStrata("HIGH")
+  frame:SetToplevel(true) -- vem INTEIRA pra frente ao clicar (não intercala com a bag/outras janelas)
   frame:SetClampedToScreen(true)
   frame:SetMovable(true)
   ApplyPosition(frame)
@@ -868,8 +1012,9 @@ local function BuildFrame()
   -- LINHA DE RESUMO
   local summary = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   summary:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -(TOP_TITLE + 4))
-  summary:SetPoint("RIGHT", frame, "RIGHT", -120, 0)
+  summary:SetPoint("RIGHT", frame, "RIGHT", -255, 0)
   summary:SetJustifyH("LEFT")
+  summary:SetWordWrap(false)
   frame.summary = summary
 
   -- ocultar concluídos (canto direito da linha de resumo)
@@ -885,6 +1030,32 @@ local function BuildFrame()
     if KA.SetHideCompleted then KA.SetHideCompleted(self:GetChecked()) end
   end)
   frame.hideCb = hideCb
+
+  -- BOTÃO AGRUPAR (3 estados: não / reino / facção) — à esquerda do "ocultar"
+  local groupBtn = CreateFrame("Button", nil, frame)
+  groupBtn:SetSize(100, 18)
+  groupBtn:SetPoint("RIGHT", cbLabel, "LEFT", -14, 0)
+  local gbText = groupBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  gbText:SetAllPoints()
+  gbText:SetJustifyH("RIGHT")
+  gbText:SetWordWrap(false)
+  gbText:SetTextColor(COLOR_HEADER[1], COLOR_HEADER[2], COLOR_HEADER[3])
+  groupBtn.text = gbText
+  groupBtn.refresh = function()
+    local m = (KA.GetGroupBy and KA.GetGroupBy()) or "none"
+    local name = (m == "realm" and L.GROUP_REALM) or (m == "faction" and L.GROUP_FACTION) or L.GROUP_NONE
+    gbText:SetText(string.format(L.GROUP_BTN, name))
+  end
+  groupBtn:SetScript("OnClick", function(self)
+    if KA.CycleGroupBy then KA.CycleGroupBy() end
+    if self.refresh then self.refresh() end
+  end)
+  groupBtn:SetScript("OnEnter", function(self) self.text:SetTextColor(1, 1, 1) end)
+  groupBtn:SetScript("OnLeave", function(self)
+    self.text:SetTextColor(COLOR_HEADER[1], COLOR_HEADER[2], COLOR_HEADER[3])
+  end)
+  groupBtn.refresh()
+  frame.groupBtn = groupBtn
 
   -- CABEÇALHO DE COLUNAS (preto @30%)
   local headerBar = CreateFrame("Frame", nil, frame)

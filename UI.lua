@@ -1,18 +1,22 @@
--- KrononAlts — UI: janela movável com a tabela cross-character.
--- Lê KrononAlts.GetChars(); pool de linhas sem ghost; tooltips de 2 camadas;
--- countdown de reset no topo; selo "precisa logar"; refresh ao vivo via EventBus.
+-- KrononAlts — UI: janela flat movável com a tabela cross-character.
+-- Lê KrononAlts.GetChars(); pool de linhas sem ghost; linha-resumo;
+-- ScrollFrame para muitos alts; accordion de detalhe (1 aberto por vez);
+-- countdown de reset na titlebar; posição salva em KrononAltsDB.pos.
 
 local KA = KrononAlts
 local L = KA.L
 
 -- ---------------------------------------------------------------------------
--- Cores semânticas (sempre acompanhadas de número/glifo, nunca só cor)
+-- Paleta (valores reais do guia AlterEgo) — backdrop FLAT, não bisotado
 -- ---------------------------------------------------------------------------
-local COLOR_DONE    = { 0.40, 0.85, 0.40 }
+local BG          = { 0.1137, 0.1412, 0.1647 } -- #1D242A
+local ACCENT      = { 1.00, 0.82, 0.00 }        -- dourado (recompensa / cap)
+local ACCENT_BLUE = { 0.20, 0.60, 1.00 }        -- #3399FF (char logado)
+local COLOR_DONE    = { 0.20, 0.82, 0.48 }      -- #33D17A
 local COLOR_PARTIAL = { 1.00, 0.82, 0.00 }
-local COLOR_MISSING = { 0.55, 0.55, 0.55 }
-local COLOR_HEADER  = { 0.82, 0.78, 0.60 }
-local ACCENT        = { 1.00, 0.82, 0.00 }
+local COLOR_MISSING = { 0.50, 0.50, 0.50 }      -- #808080
+local COLOR_HEADER  = { 0.70, 0.70, 0.74 }
+local COLOR_GOLD    = { 1.00, 0.84, 0.00 }
 
 local function hex(col)
   return string.format("%02x%02x%02x",
@@ -25,50 +29,89 @@ local function colored(col, text)
   return "|cff" .. hex(col) .. tostring(text) .. "|r"
 end
 
--- ---------------------------------------------------------------------------
--- Layout da tabela
--- ---------------------------------------------------------------------------
-local ROW_H    = 22
-local FRAME_W  = 652
-local ROWS_TOP = 80 -- distância (positiva) do topo até a 1ª linha de dados
+-- Cor de qualidade épica (pips do cofre preenchidos)
+local QC_EPIC = { 0.64, 0.21, 0.93 }
+if GetItemQualityColor then
+  local ok, r, g, b = pcall(GetItemQualityColor, 4)
+  if ok and type(r) == "number" then QC_EPIC = { r, g, b } end
+end
 
+-- Cor do rating de M+ por faixa (usa a API quando disponível)
+local function RatingColor(r)
+  r = r or 0
+  if C_ChallengeMode and C_ChallengeMode.GetDungeonScoreRarityColor then
+    local ok, col = pcall(C_ChallengeMode.GetDungeonScoreRarityColor, r)
+    if ok and type(col) == "table" and col.r then return { col.r, col.g, col.b } end
+  end
+  if r >= 2500 then return { 1.00, 0.50, 0.00 } end
+  if r >= 2000 then return { 0.64, 0.21, 0.93 } end
+  if r >= 1500 then return { 0.00, 0.44, 0.87 } end
+  if r >= 750  then return { 0.12, 1.00, 0.00 } end
+  if r > 0     then return { 1, 1, 1 } end
+  return COLOR_MISSING
+end
+
+-- ---------------------------------------------------------------------------
+-- Ícone de classe (atlas classicon-<token>; fallback CLASS_ICON_TCOORDS)
+-- ---------------------------------------------------------------------------
+local function SetClassIcon(tex, classFile)
+  if not tex then return end
+  classFile = classFile or ""
+  local atlas = "classicon-" .. classFile:lower()
+  local ok = pcall(tex.SetAtlas, tex, atlas)
+  if ok and tex.GetAtlas and tex:GetAtlas() == atlas then return end
+  tex:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
+  local coords = CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[classFile]
+  if coords then
+    tex:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+  else
+    tex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- Layout
+-- ---------------------------------------------------------------------------
+local ROW_H   = 24
+local FRAME_W = 600
+local FRAME_H = 444
+local TOP_TITLE   = 26  -- altura da titlebar
+local TOP_SUMMARY = 20  -- linha de resumo
+local TOP_HEADER  = 18  -- cabeçalho de colunas
+local CONTENT_TOP = TOP_TITLE + TOP_SUMMARY + TOP_HEADER + 4 -- topo do scroll
+
+-- x relativo à esquerda da linha; pips desenhados à parte na coluna "vault".
+-- O conteúdo cabe na viewport do ScrollFrame (~570px) para a coluna de ouro
+-- (à direita) não ser cortada pelo recorte do scroll.
 local COLS = {
-  { key = "name",   x = 12,  w = 150, justify = "LEFT"   },
-  { key = "vault",  x = 164, w = 70,  justify = "CENTER" },
-  { key = "mplus",  x = 238, w = 34,  justify = "CENTER" },
-  { key = "key",    x = 276, w = 92,  justify = "LEFT"   },
-  { key = "rating", x = 372, w = 46,  justify = "CENTER" },
-  { key = "crest",  x = 422, w = 86,  justify = "LEFT"   },
-  { key = "raid",   x = 512, w = 128, justify = "LEFT"   },
+  { key = "name",   x = 20,  w = 140, justify = "LEFT",   label = L.COL_CHAR,   sort = "name"   },
+  { key = "ilvl",   x = 168, w = 34,  justify = "RIGHT",  label = L.COL_ILVL,   sort = "ilvl"   },
+  { key = "rating", x = 204, w = 46,  justify = "RIGHT",  label = L.COL_RATING, sort = "rating" },
+  { key = "key",    x = 254, w = 56,  justify = "CENTER", label = L.COL_KEY,    sort = nil      },
+  { key = "vault",  x = 314, w = 92,  justify = "LEFT",   label = L.COL_VAULT,  sort = "vault"  },
+  { key = "crest",  x = 408, w = 66,  justify = "RIGHT",  label = L.COL_CREST,  sort = "crest"  },
+  { key = "gold",   x = 476, w = 82,  justify = "RIGHT",  label = L.COL_GOLD,   sort = "gold"   },
 }
 
--- Colunas com header clicável (ordenação). "key" (keystone) não ordena.
-local SORTABLE = {
-  name = true, vault = true, mplus = true, rating = true, crest = true, raid = true,
-}
-
-local HEADER_LABEL = {
-  name   = L.COL_CHAR,
-  vault  = L.COL_VAULT,
-  mplus  = L.COL_MPLUS,
-  key    = L.COL_KEY,
-  rating = L.COL_RATING,
-  crest  = L.COL_CREST,
-  raid   = L.COL_RAID,
-}
+local PIP_BASE_X = 314
 
 local DIFF_ABBR = {
-  [17] = L.DIFF_LFR, -- Raid Finder
-  [14] = L.DIFF_N,   -- Normal
-  [15] = L.DIFF_H,   -- Heroic
-  [16] = L.DIFF_M,   -- Mythic
+  [17] = L.DIFF_LFR, [14] = L.DIFF_N, [15] = L.DIFF_H, [16] = L.DIFF_M,
 }
 local function DiffAbbr(id, name)
   return DIFF_ABBR[id or 0] or (name and name:sub(1, 3)) or "?"
 end
 
+local function Abbrev(name)
+  if type(name) ~= "string" or name == "" then return "" end
+  local letters = {}
+  for w in name:gmatch("%S+") do letters[#letters + 1] = w:sub(1, 1) end
+  if #letters >= 2 then return table.concat(letters):upper():sub(1, 4) end
+  return name:sub(1, 4):upper()
+end
+
 -- ---------------------------------------------------------------------------
--- Formatação de tempo
+-- Formatação
 -- ---------------------------------------------------------------------------
 local function FormatCountdown(seconds)
   seconds = math.max(0, math.floor(seconds or 0))
@@ -91,24 +134,27 @@ local function FormatAgo(seconds)
   return d .. L.ABBR_D .. " " .. (h % 24) .. L.ABBR_H
 end
 
+local function FormatGold(copper)
+  if type(copper) ~= "number" or copper <= 0 then return nil end
+  local g = math.floor(copper / 10000)
+  if BreakUpLargeNumbers then
+    local ok, s = pcall(BreakUpLargeNumbers, g)
+    if ok and s then return s .. "g" end
+  end
+  return g .. "g"
+end
+
 -- ---------------------------------------------------------------------------
--- Confirmação de remoção de personagem
+-- Popups (remover / apelido) — preservados
 -- ---------------------------------------------------------------------------
 StaticPopupDialogs["KRONONALTS_REMOVE"] = {
   text = L.REMOVE_CONFIRM,
   button1 = YES,
   button2 = NO,
   OnAccept = function(_, key) if key then KA.RemoveChar(key) end end,
-  timeout = 0,
-  whileDead = true,
-  hideOnEscape = true,
-  showAlert = true,
-  preferredIndex = 3,
+  timeout = 0, whileDead = true, hideOnEscape = true, showAlert = true, preferredIndex = 3,
 }
 
--- ---------------------------------------------------------------------------
--- Definir apelido (EditBox) — salvo em DB.chars[key].nick
--- ---------------------------------------------------------------------------
 StaticPopupDialogs["KRONONALTS_NICK"] = {
   text = L.NICK_PROMPT,
   button1 = ACCEPT,
@@ -138,13 +184,9 @@ StaticPopupDialogs["KRONONALTS_NICK"] = {
     local parent = self:GetParent()
     if parent then parent:Hide() end
   end,
-  timeout = 0,
-  whileDead = true,
-  hideOnEscape = true,
-  preferredIndex = 3,
+  timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
 }
 
--- Menu de contexto do personagem (MenuUtil 11.0+; fallback defensivo)
 local function ShowCharMenu(anchor, entry)
   local d = entry.data
   local label = d.nick or d.name or "?"
@@ -161,278 +203,462 @@ local function ShowCharMenu(anchor, entry)
       end
     end)
   else
-    -- sem MenuUtil: ação principal = definir apelido (remoção via menu indisponível)
     StaticPopup_Show("KRONONALTS_NICK", label, nil, { key = entry.key })
   end
 end
 
 -- ---------------------------------------------------------------------------
--- Estado da UI
+-- Estado
 -- ---------------------------------------------------------------------------
 local frame
+local scrollChild
 local rows = {}
+local detailFrame
+local expandedKey = nil
+local Refresh -- forward
 
 -- ---------------------------------------------------------------------------
 -- Criação de uma linha (pool)
 -- ---------------------------------------------------------------------------
 local function CreateRow(parent)
   local row = CreateFrame("Frame", nil, parent)
-  row:SetSize(FRAME_W, ROW_H)
+  row:SetHeight(ROW_H)
+  row:EnableMouse(true)
 
   row.bg = row:CreateTexture(nil, "BACKGROUND")
   row.bg:SetAllPoints()
 
+  row.hover = row:CreateTexture(nil, "BORDER")
+  row.hover:SetAllPoints()
+  row.hover:SetColorTexture(1, 1, 1, 0.05)
+  row.hover:Hide()
+
+  row.accent = row:CreateTexture(nil, "ARTWORK")
+  row.accent:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+  row.accent:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
+  row.accent:SetWidth(3)
+  row.accent:Hide()
+
+  -- chevron de expand
+  row.chevron = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  row.chevron:SetPoint("LEFT", row, "LEFT", 6, 0)
+  row.chevron:SetWidth(12)
+  row.chevron:SetJustifyH("CENTER")
+  row.chevron:SetTextColor(0.6, 0.6, 0.6)
+
+  -- ícone de classe
+  row.icon = row:CreateTexture(nil, "ARTWORK")
+  row.icon:SetSize(16, 16)
+  row.icon:SetPoint("LEFT", row, "LEFT", 20, 0)
+
+  -- células de texto
   row.cells = {}
   for _, col in ipairs(COLS) do
-    local cell = CreateFrame("Frame", nil, row)
-    cell:SetPoint("TOPLEFT", row, "TOPLEFT", col.x, 0)
-    cell:SetSize(col.w, ROW_H)
-    cell:EnableMouse(true)
-
-    local fs = cell:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    fs:SetAllPoints()
-    fs:SetJustifyH(col.justify)
-    fs:SetJustifyV("MIDDLE")
-    fs:SetWordWrap(false)
-    cell.text = fs
-
-    cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    row.cells[col.key] = cell
+    if col.key ~= "vault" then
+      local fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+      fs:SetPoint("TOPLEFT", row, "TOPLEFT", col.x, 0)
+      fs:SetSize(col.w, ROW_H)
+      fs:SetJustifyH(col.justify)
+      fs:SetJustifyV("MIDDLE")
+      fs:SetWordWrap(false)
+      row.cells[col.key] = fs
+    end
   end
+  -- o nome começa após o ícone
+  row.cells.name:SetPoint("TOPLEFT", row, "TOPLEFT", 40, 0)
+  row.cells.name:SetWidth(128)
+
+  -- pips do cofre (3 M+ + 3 raide)
+  row.pips = {}
+  for i = 1, 6 do
+    local p = row:CreateTexture(nil, "ARTWORK")
+    p:SetSize(8, 8)
+    local groupGap = (i > 3) and 8 or 0
+    local x = PIP_BASE_X + (i - 1) * 11 + groupGap
+    p:SetPoint("LEFT", row, "LEFT", x, 0)
+    row.pips[i] = p
+  end
+
+  row:SetScript("OnEnter", function(self)
+    if not self._current then self.hover:Show() end
+    local d = self._data
+    if not d then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    local cc = RAID_CLASS_COLORS[d.class or ""]
+    local cr, cg, cb = 1, 1, 1
+    if cc then cr, cg, cb = cc.r, cc.g, cc.b end
+    GameTooltip:SetText(d.nick or d.name or "?", cr, cg, cb)
+    if d.realm then GameTooltip:AddLine(d.realm, 0.7, 0.7, 0.7) end
+    if d.updatedAt then
+      GameTooltip:AddLine(string.format(L.TT_UPDATED, FormatAgo(time() - d.updatedAt)), 0.6, 0.8, 1)
+    end
+    if self._stale then
+      GameTooltip:AddLine(" ")
+      GameTooltip:AddLine(L.STALE, 1, 0.4, 0.4, true)
+    end
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine(L.CLICK_EXPAND, 0.5, 0.5, 0.5)
+    GameTooltip:Show()
+  end)
+  row:SetScript("OnLeave", function(self)
+    self.hover:Hide()
+    GameTooltip:Hide()
+  end)
+  row:SetScript("OnMouseUp", function(self, button)
+    if button == "RightButton" then
+      if self._entry then ShowCharMenu(self, self._entry) end
+    else
+      if self._key then
+        if expandedKey == self._key then expandedKey = nil else expandedKey = self._key end
+        if Refresh then Refresh() end
+      end
+    end
+  end)
 
   return row
 end
 
 -- ---------------------------------------------------------------------------
--- Preenchimento de uma linha com os dados de um personagem
+-- Preenchimento de uma linha
 -- ---------------------------------------------------------------------------
 local function PopulateRow(row, entry, index)
   local d = entry.data
+  local v = d.vault
+  local hasRewards = v and v.hasRewards
   local stale = (not entry.isCurrent) and KA.IsStale(d)
 
-  -- fundo: char logado ganha um acento sutil; demais alternam zebra
+  row._data, row._entry, row._key = d, entry, entry.key
+  row._current, row._stale = entry.isCurrent, stale
+
+  -- fundo / acento
   if entry.isCurrent then
-    row.bg:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 0.10)
+    row.bg:SetColorTexture(ACCENT_BLUE[1], ACCENT_BLUE[2], ACCENT_BLUE[3], 0.10)
+    row.accent:SetColorTexture(ACCENT_BLUE[1], ACCENT_BLUE[2], ACCENT_BLUE[3], 1); row.accent:Show()
+  elseif hasRewards then
+    row.bg:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 0.12)
+    row.accent:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 1); row.accent:Show()
   elseif index % 2 == 0 then
-    row.bg:SetColorTexture(1, 1, 1, 0.03)
+    row.bg:SetColorTexture(1, 1, 1, 0.02); row.accent:Hide()
   else
-    row.bg:SetColorTexture(0, 0, 0, 0)
+    row.bg:SetColorTexture(0, 0, 0, 0); row.accent:Hide()
   end
   row:SetAlpha(stale and 0.6 or 1)
+
+  -- chevron
+  row.chevron:SetText((expandedKey == entry.key) and "-" or "+") -- - aberto / + fechado (ASCII p/ renderizar sempre)
 
   -- classe / cor
   local cc = RAID_CLASS_COLORS[d.class or ""]
   local cr, cg, cb = 1, 1, 1
   if cc then cr, cg, cb = cc.r, cc.g, cc.b end
+  SetClassIcon(row.icon, d.class)
 
-  -- ===== NOME (apelido tem prioridade visual) =====
-  local nameCell = row.cells.name
-  local realName = d.name or "?"
-  local shown = d.nick or realName
-  local sealPrefix = stale and "|cffff4040(!)|r " or ""
-  local ilvlStr = d.ilvl and ("  |cff8888ff" .. d.ilvl .. "|r") or ""
-  nameCell.text:SetTextColor(cr, cg, cb)
-  nameCell.text:SetText(sealPrefix .. shown .. ilvlStr)
-  nameCell:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(shown, cr, cg, cb)
-    if d.nick then GameTooltip:AddLine(realName, 0.7, 0.7, 0.7) end
-    if d.realm then GameTooltip:AddLine(d.realm, 0.7, 0.7, 0.7) end
-    GameTooltip:AddLine(string.format(L.TT_LEVEL_ILVL, d.level or 0, d.ilvl or 0), 0.85, 0.85, 0.85)
-    if d.updatedAt then
-      GameTooltip:AddLine(string.format(L.TT_UPDATED, FormatAgo(time() - d.updatedAt)), 0.6, 0.8, 1)
-    end
-    if stale then
-      GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(L.STALE, 1, 0.4, 0.4, true)
-    end
-    GameTooltip:AddLine(" ")
-    GameTooltip:AddLine(L.TT_REMOVE_HINT, 0.5, 0.5, 0.5)
-    GameTooltip:Show()
-  end)
-  nameCell:SetScript("OnMouseUp", function(self, button)
-    if button == "RightButton" then
-      ShowCharMenu(self, entry)
-    end
-  end)
+  -- NOME
+  local shown = d.nick or d.name or "?"
+  if stale then shown = "|cffff4040(!)|r " .. shown end
+  row.cells.name:SetTextColor(cr, cg, cb)
+  row.cells.name:SetText(shown)
 
-  -- ===== COFRE (3 trilhas: M+ · Raide · Mundo) =====
-  local v = d.vault
-  local function filled(t) return (t and t.filled) or 0 end
-  local function digit(n)
-    local col = (n >= 3) and COLOR_DONE or (n >= 1 and COLOR_PARTIAL or COLOR_MISSING)
-    return colored(col, n)
+  -- ILVL
+  if d.ilvl then
+    row.cells.ilvl:SetText("|cffe6e6f0" .. d.ilvl .. "|r")
+  else
+    row.cells.ilvl:SetText(colored(COLOR_MISSING, L.NONE))
   end
-  local m = filled(v and v.mplus)
-  local r = filled(v and v.raid)
-  local w = filled(v and v.world)
-  local vaultText = digit(m) .. "|cff555555·|r" .. digit(r) .. "|cff555555·|r" .. digit(w)
-  if v and v.hasRewards then vaultText = vaultText .. " |cffffd000!|r" end
-  local vaultCell = row.cells.vault
-  vaultCell.text:SetText(vaultText)
-  vaultCell:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(L.TT_VAULT_TITLE, ACCENT[1], ACCENT[2], ACCENT[3])
-    local function trackLines(label, t)
-      GameTooltip:AddLine(" ")
-      GameTooltip:AddDoubleLine(label, ((t and t.filled) or 0) .. "/" .. ((t and t.total) or 3),
-        1, 0.82, 0, 1, 1, 1)
-      if t and t.slots then
-        for _, s in ipairs(t.slots) do
-          local mark, desc
-          if s.unlocked then
-            mark = "|cff66ff66" .. "+" .. "|r"
-            desc = s.ilvl and string.format(L.TT_SLOT_ILVL, s.ilvl) or L.TT_SLOT_READY
-          else
-            mark = "|cff888888-|r"
-            desc = string.format("%d/%d", s.progress or 0, s.threshold or 0)
-          end
-          GameTooltip:AddDoubleLine("   " .. mark, desc, 1, 1, 1, 0.8, 0.8, 0.8)
-        end
-      end
-    end
-    trackLines(L.TRACK_MPLUS, v and v.mplus)
-    trackLines(L.TRACK_RAID,  v and v.raid)
-    trackLines(L.TRACK_WORLD, v and v.world)
-    if v and v.hasRewards then
-      GameTooltip:AddLine(" ")
-      GameTooltip:AddLine(L.VAULT_HAS_REWARDS, 1, 0.82, 0)
-    end
-    -- Próxima ação: o que falta pro 1º slot ainda aberto de cada trilha
-    local nexts = (KA.GetNextActions and KA.GetNextActions(v)) or {}
-    GameTooltip:AddLine(" ")
-    if #nexts == 0 then
-      GameTooltip:AddLine(L.NEXT_DONE, 0.40, 0.85, 0.40)
-    else
-      GameTooltip:AddLine(L.NEXT_TITLE, ACCENT[1], ACCENT[2], ACCENT[3])
-      for _, na in ipairs(nexts) do
-        GameTooltip:AddDoubleLine("   " .. na.track,
-          string.format(L.NEXT_LINE, na.need or 0, na.slot or 0), 1, 1, 1, 0.85, 0.85, 0.85)
-      end
-    end
-    GameTooltip:Show()
-  end)
 
-  -- ===== M+ (runs da semana) =====
+  -- RATING
   local mp = d.mplus or {}
-  local runs = mp.runs or 0
-  local runsCol = (runs >= 8) and COLOR_DONE or (runs >= 1 and COLOR_PARTIAL or COLOR_MISSING)
-  local mplusCell = row.cells.mplus
-  mplusCell.text:SetText(colored(runsCol, runs))
-  mplusCell:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(L.TT_MPLUS_TITLE, ACCENT[1], ACCENT[2], ACCENT[3])
-    GameTooltip:AddLine(string.format(L.TT_RUNS, runs), 1, 1, 1)
-    if (mp.best or 0) > 0 then
-      GameTooltip:AddLine(string.format(L.TT_BEST, mp.best), 0.85, 0.85, 0.85)
-    end
-    GameTooltip:Show()
-  end)
-
-  -- ===== CHAVE (keystone) =====
-  local keyCell = row.cells.key
-  if mp.keystoneLevel then
-    keyCell.text:SetText(colored(COLOR_PARTIAL, "+" .. mp.keystoneLevel) .. " |cffffffff" .. (mp.keystoneMap or "") .. "|r")
-  else
-    keyCell.text:SetText(colored(COLOR_MISSING, L.NONE))
-  end
-  keyCell:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(L.COL_KEY, ACCENT[1], ACCENT[2], ACCENT[3])
-    if mp.keystoneLevel then
-      GameTooltip:AddLine(string.format("+%d  %s", mp.keystoneLevel, mp.keystoneMap or "?"), 1, 1, 1)
-    else
-      GameTooltip:AddLine(L.TT_NO_KEY, 0.7, 0.7, 0.7)
-    end
-    GameTooltip:Show()
-  end)
-
-  -- ===== RATING =====
   local rating = mp.rating or 0
-  local ratingCell = row.cells.rating
   if rating > 0 then
-    ratingCell.text:SetText("|cffffffff" .. rating .. "|r")
+    row.cells.rating:SetText(colored(RatingColor(rating), rating))
   else
-    ratingCell.text:SetText(colored(COLOR_MISSING, L.NONE))
+    row.cells.rating:SetText(colored(COLOR_MISSING, L.NONE))
   end
-  ratingCell:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(string.format(L.TT_RATING, rating), ACCENT[1], ACCENT[2], ACCENT[3])
-    GameTooltip:Show()
-  end)
 
-  -- ===== CRESTS / MOEDAS DA SEASON =====
-  local crestCell = row.cells.crest
-  local currencies = d.currencies
+  -- CHAVE
+  if mp.keystoneLevel then
+    local ab = Abbrev(mp.keystoneMap)
+    local txt = colored(COLOR_PARTIAL, "+" .. mp.keystoneLevel)
+    if ab ~= "" then txt = "|cffbbbbbb" .. ab .. "|r " .. txt end
+    row.cells.key:SetText(txt)
+  else
+    row.cells.key:SetText(colored(COLOR_MISSING, L.NONE))
+  end
+
+  -- COFRE (pips)
+  local slotsM = (v and v.mplus and v.mplus.slots) or {}
+  local slotsR = (v and v.raid and v.raid.slots) or {}
+  local function setPip(tex, slot)
+    if slot and slot.unlocked then
+      tex:SetColorTexture(QC_EPIC[1], QC_EPIC[2], QC_EPIC[3], 1)
+    else
+      tex:SetColorTexture(0.45, 0.45, 0.50, 0.35)
+    end
+  end
+  for i = 1, 3 do setPip(row.pips[i], slotsM[i]) end
+  for i = 1, 3 do setPip(row.pips[3 + i], slotsR[i]) end
+
+  -- CRESTS
   local best
-  if type(currencies) == "table" then
-    for _, c in ipairs(currencies) do
-      if c.kind == "crest" and (c.quantity or 0) > 0 then best = c end -- maior tier vence
+  if type(d.currencies) == "table" then
+    for _, c in ipairs(d.currencies) do
+      if c.kind == "crest" and (c.quantity or 0) > 0 then best = c end
     end
   end
   if best then
     local short = (best.name and best.name:match("^(%S+)")) or "?"
     local capped = (best.weeklyMax or 0) > 0 and (best.weekly or 0) >= best.weeklyMax
-    local col = capped and COLOR_DONE or COLOR_PARTIAL
-    crestCell.text:SetText(colored(col, short .. " " .. (best.quantity or 0)))
+    row.cells.crest:SetText(colored(capped and COLOR_GOLD or COLOR_PARTIAL, short .. " " .. (best.quantity or 0)))
   else
-    crestCell.text:SetText(colored(COLOR_MISSING, L.NONE))
+    row.cells.crest:SetText(colored(COLOR_MISSING, L.NONE))
   end
-  crestCell:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(L.TT_CREST_TITLE, ACCENT[1], ACCENT[2], ACCENT[3])
-    if type(currencies) ~= "table" or #currencies == 0 then
-      GameTooltip:AddLine(L.TT_CREST_NONE, 0.7, 0.7, 0.7, true)
-    else
-      for _, c in ipairs(currencies) do
-        local amount = tostring(c.quantity or 0)
-        if (c.max or 0) > 0 then amount = amount .. "/" .. c.max end
-        GameTooltip:AddDoubleLine(c.name or ("#" .. tostring(c.id or "?")), amount,
-          1, 1, 1, 0.9, 0.9, 0.9)
-        if (c.weeklyMax or 0) > 0 then
-          GameTooltip:AddDoubleLine("   " .. L.TT_CREST_WEEKLY,
-            (c.weekly or 0) .. "/" .. c.weeklyMax, 0.6, 0.6, 0.6, 0.8, 0.8, 0.8)
-        end
-      end
-    end
-    GameTooltip:Show()
-  end)
 
-  -- ===== RAIDE (lockout mais relevante) =====
-  local raids = d.raids or {}
-  local top = raids[1] -- já vem ordenado por dificuldade desc no Core
-  local raidCell = row.cells.raid
-  if top then
-    local total = top.total or 0
-    local prog = top.progress or 0
-    local done = total > 0 and prog >= total
-    local col = done and COLOR_DONE or (prog > 0 and COLOR_PARTIAL or COLOR_MISSING)
-    local mark = done and "+ " or ""
-    raidCell.text:SetText(colored(col, mark .. DiffAbbr(top.difficultyId, top.difficultyName) .. " " .. prog .. "/" .. total))
+  -- OURO
+  local g = FormatGold(d.gold)
+  if g then
+    row.cells.gold:SetText(colored(COLOR_GOLD, g))
   else
-    raidCell.text:SetText(colored(COLOR_MISSING, L.NONE))
+    row.cells.gold:SetText(colored(COLOR_MISSING, L.NONE))
   end
-  raidCell:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText(L.TT_RAID_TITLE, ACCENT[1], ACCENT[2], ACCENT[3])
-    if #raids == 0 then
-      GameTooltip:AddLine(L.TT_NO_RAID, 0.7, 0.7, 0.7)
-    else
-      for _, lk in ipairs(raids) do
-        local total = lk.total or 0
-        local prog = lk.progress or 0
-        local done = total > 0 and prog >= total
-        local dc = done and COLOR_DONE or COLOR_PARTIAL
-        local label = (lk.name or "?") .. "  (" .. (lk.difficultyName or "?") .. ")"
-        GameTooltip:AddDoubleLine(label, prog .. "/" .. total, 1, 1, 1, dc[1], dc[2], dc[3])
-      end
-    end
-    GameTooltip:Show()
-  end)
 end
 
 -- ---------------------------------------------------------------------------
--- Indicador de ordenação nos cabeçalhos (seta asc/desc na coluna ativa)
+-- Texto do painel de detalhe (lado direito, rich text)
+-- ---------------------------------------------------------------------------
+local function BuildDetailText(d)
+  local lines = {}
+  local function add(s) lines[#lines + 1] = s end
+  local function head(s) add(colored(ACCENT, s)) end
+  local v = d.vault
+
+  -- GRANDE COFRE
+  head(L.DETAIL_VAULT)
+  local function trackLine(label, t)
+    local parts = {}
+    if type(t) == "table" and type(t.slots) == "table" then
+      for _, s in ipairs(t.slots) do
+        if s.unlocked then
+          parts[#parts + 1] = colored(QC_EPIC, s.ilvl and ("ilvl " .. s.ilvl) or "+")
+        else
+          local need = (s.threshold or 0) - (s.progress or 0)
+          if need < 0 then need = 0 end
+          parts[#parts + 1] = colored(COLOR_MISSING, string.format(L.SLOT_NEED, need))
+        end
+      end
+    end
+    if #parts == 0 then parts[1] = colored(COLOR_MISSING, L.NONE) end
+    local filled = (t and t.filled) or 0
+    local total = (t and t.total) or 3
+    add(string.format("  |cffcfcfcf%s|r  |cff888888%d/%d|r   %s",
+      label, filled, total, table.concat(parts, "  ")))
+  end
+  trackLine(L.TRACK_MPLUS, v and v.mplus)
+  trackLine(L.TRACK_RAID,  v and v.raid)
+  trackLine(L.TRACK_WORLD, v and v.world)
+  if v and v.hasRewards then add("  " .. colored(ACCENT, L.VAULT_HAS_REWARDS)) end
+  add(" ")
+
+  -- MÍTICA+ POR MASMORRA
+  head(L.DETAIL_MPLUS)
+  local maps = d.mplusMaps
+  if type(maps) == "table" and #maps > 0 then
+    for _, mapinfo in ipairs(maps) do
+      local icon = ""
+      if type(mapinfo.texture) == "number" and mapinfo.texture > 0 then
+        icon = "|T" .. mapinfo.texture .. ":14:14:0:0:64:64:5:59:5:59|t "
+      end
+      local lvl
+      if (mapinfo.level or 0) > 0 then
+        lvl = colored(COLOR_DONE, "+" .. mapinfo.level)   -- feita esta semana
+      else
+        lvl = colored(COLOR_PARTIAL, L.MPLUS_TODO)         -- falta correr esta semana
+      end
+      add(string.format("  %s|cffe6e6f0%s|r  %s", icon, mapinfo.name or "?", lvl))
+    end
+  else
+    add("  " .. colored(COLOR_MISSING, L.NO_DATA))
+  end
+  add(" ")
+
+  -- LOCKOUTS DE RAIDE
+  head(L.DETAIL_RAID)
+  local raids = d.raids
+  if type(raids) == "table" and #raids > 0 then
+    for _, lk in ipairs(raids) do
+      local total = lk.total or 0
+      local prog = lk.progress or 0
+      local done = total > 0 and prog >= total
+      add(string.format("  |cffe6e6f0%s|r |cff888888(%s)|r  %s",
+        lk.name or "?", lk.difficultyName or DiffAbbr(lk.difficultyId),
+        colored(done and COLOR_DONE or COLOR_PARTIAL, prog .. "/" .. total)))
+    end
+  else
+    add("  " .. colored(COLOR_MISSING, L.TT_NO_RAID))
+  end
+  add(" ")
+
+  -- MOEDAS & CRESTS
+  head(L.DETAIL_CURR)
+  local currencies = d.currencies
+  if type(currencies) == "table" and #currencies > 0 then
+    for _, c in ipairs(currencies) do
+      local amount = tostring(c.quantity or 0)
+      if (c.max or 0) > 0 then amount = amount .. "/" .. c.max end
+      local wk = ""
+      if (c.weeklyMax or 0) > 0 then
+        wk = "  |cff888888(" .. (c.weekly or 0) .. "/" .. c.weeklyMax .. " " .. L.TT_CREST_WEEKLY .. ")|r"
+      end
+      add(string.format("  |cffcfcfcf%s|r  %s%s", c.name or "?", colored(COLOR_PARTIAL, amount), wk))
+    end
+  else
+    add("  " .. colored(COLOR_MISSING, L.NONE))
+  end
+  add(" ")
+
+  -- SEMANAIS
+  head(L.DETAIL_WEEKLY)
+  local wk = d.weeklies
+  local anyWeekly = false
+  if type(wk) == "table" then
+    if type(wk.conquest) == "table" then
+      anyWeekly = true
+      local cap = wk.conquest.cap or 0
+      local earned = wk.conquest.earned or 0
+      local capped = cap > 0 and earned >= cap
+      add(string.format("  |cffcfcfcf%s|r  %s", L.WEEKLY_CONQUEST,
+        colored(capped and COLOR_GOLD or COLOR_PARTIAL, earned .. (cap > 0 and ("/" .. cap) or ""))))
+    end
+    if type(wk.catalyst) == "table" then
+      anyWeekly = true
+      local q = wk.catalyst.quantity or 0
+      local mx = wk.catalyst.max or 0
+      add(string.format("  |cffcfcfcf%s|r  %s", L.WEEKLY_CATALYST,
+        colored(COLOR_PARTIAL, q .. (mx > 0 and ("/" .. mx) or ""))))
+    end
+  end
+  if not anyWeekly then add("  " .. colored(COLOR_MISSING, L.NO_DATA)) end
+  add(" ")
+
+  -- PROFISSÕES
+  head(L.DETAIL_PROF)
+  local profs = d.professions
+  if type(profs) == "table" and #profs > 0 then
+    for _, p in ipairs(profs) do
+      local extra = {}
+      if type(p.skillLevel) == "number" and (p.maxSkillLevel or 0) > 0 then
+        extra[#extra + 1] = "|cff888888" .. p.skillLevel .. "/" .. p.maxSkillLevel .. "|r"
+      end
+      if type(p.knowledge) == "number" then
+        extra[#extra + 1] = colored(COLOR_PARTIAL, L.PROF_KNOWLEDGE .. " " .. p.knowledge)
+      end
+      add(string.format("  |cffcfcfcf%s|r  %s", p.name or "?", table.concat(extra, "  ")))
+    end
+    add("  |cff666666" .. L.PROF_OPEN_HINT .. "|r")
+  else
+    add("  " .. colored(COLOR_MISSING, L.PROF_OPEN_HINT))
+  end
+
+  return table.concat(lines, "\n")
+end
+
+-- ---------------------------------------------------------------------------
+-- Painel de detalhe (criado uma vez, reutilizado)
+-- ---------------------------------------------------------------------------
+local function EnsureDetail()
+  if detailFrame then return detailFrame end
+  local df = CreateFrame("Frame", nil, scrollChild)
+  df:Hide()
+
+  df.bg = df:CreateTexture(nil, "BACKGROUND")
+  df.bg:SetAllPoints()
+  df.bg:SetColorTexture(0, 0, 0, 0.25)
+
+  df.top = df:CreateTexture(nil, "ARTWORK")
+  df.top:SetHeight(1)
+  df.top:SetPoint("TOPLEFT", df, "TOPLEFT", 8, 0)
+  df.top:SetPoint("TOPRIGHT", df, "TOPRIGHT", -8, 0)
+  df.top:SetColorTexture(0.5, 0.5, 0.5, 0.30)
+
+  -- retrato (esquerda)
+  df.portrait = df:CreateTexture(nil, "ARTWORK")
+  df.portrait:SetSize(48, 48)
+  df.portrait:SetPoint("TOPLEFT", df, "TOPLEFT", 14, -12)
+
+  df.pname = df:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  df.pname:SetPoint("TOPLEFT", df.portrait, "BOTTOMLEFT", -2, -6)
+  df.pname:SetWidth(160)
+  df.pname:SetJustifyH("LEFT")
+
+  df.pmeta = df:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  df.pmeta:SetPoint("TOPLEFT", df.pname, "BOTTOMLEFT", 0, -2)
+  df.pmeta:SetWidth(160)
+  df.pmeta:SetJustifyH("LEFT")
+  df.pmeta:SetTextColor(0.7, 0.7, 0.7)
+
+  df.pnext = df:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  df.pnext:SetPoint("TOPLEFT", df.pmeta, "BOTTOMLEFT", 0, -8)
+  df.pnext:SetWidth(160)
+  df.pnext:SetJustifyH("LEFT")
+  df.pnext:SetJustifyV("TOP")
+
+  -- corpo (direita) — largura definida explicitamente em PopulateDetail
+  df.body = df:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  df.body:SetPoint("TOPLEFT", df, "TOPLEFT", 188, -12)
+  df.body:SetJustifyH("LEFT")
+  df.body:SetJustifyV("TOP")
+  df.body:SetSpacing(2)
+
+  detailFrame = df
+  return df
+end
+
+local function PopulateDetail(entry)
+  local df = EnsureDetail()
+  local d = entry.data
+
+  local cc = RAID_CLASS_COLORS[d.class or ""]
+  local cr, cg, cb = 1, 1, 1
+  if cc then cr, cg, cb = cc.r, cc.g, cc.b end
+
+  SetClassIcon(df.portrait, d.class)
+  df.pname:SetTextColor(cr, cg, cb)
+  df.pname:SetText(d.nick or d.name or "?")
+
+  local meta = {}
+  if d.spec then meta[#meta + 1] = d.spec end
+  if d.realm then meta[#meta + 1] = d.realm end
+  df.pmeta:SetText(table.concat(meta, "  \194\183  "))
+
+  -- próxima ação
+  local nexts = (KA.GetNextActions and KA.GetNextActions(d.vault)) or {}
+  if #nexts == 0 then
+    df.pnext:SetText(colored(COLOR_DONE, L.NEXT_DONE))
+  else
+    local out = { colored(ACCENT, L.NEXT_TITLE) }
+    for _, na in ipairs(nexts) do
+      out[#out + 1] = "  |cffcfcfcf" .. (na.track or "?") .. "|r  " ..
+        colored(COLOR_PARTIAL, string.format(L.NEXT_LINE, na.need or 0, na.slot or 0))
+    end
+    df.pnext:SetText(table.concat(out, "\n"))
+  end
+
+  -- largura do corpo derivada do scrollChild (independe da âncora do frame de detalhe)
+  local cw = (scrollChild and scrollChild:GetWidth()) or (FRAME_W - 34)
+  local bodyW = math.max((cw or 560) - 188 - 12, 200)
+  df.body:SetWidth(bodyW)
+  df.body:SetText(BuildDetailText(d))
+
+  local bodyH = df.body:GetStringHeight() or 0
+  local leftH = 48 + 6 + (df.pname:GetStringHeight() or 12)
+              + 4 + (df.pmeta:GetStringHeight() or 10)
+              + 8 + (df.pnext:GetStringHeight() or 10)
+  local h = math.max(bodyH, leftH) + 28
+  df:SetHeight(h)
+  return h
+end
+
+-- ---------------------------------------------------------------------------
+-- Cabeçalhos: indicador de ordenação
 -- ---------------------------------------------------------------------------
 local function UpdateHeaders()
   if not (frame and frame.headers) then return end
@@ -440,40 +666,91 @@ local function UpdateHeaders()
   for key, h in pairs(frame.headers) do
     local label = h.baseLabel or key
     if sort and sort.key == key then
-      label = label .. (sort.dir == "asc" and " |cffffd000\226\150\178|r" or " |cffffd000\226\150\188|r")
+      label = label .. (sort.dir == "asc" and " |TInterface\\Buttons\\Arrow-Up-Up:14:14|t" or " |TInterface\\Buttons\\Arrow-Down-Up:14:14|t")
     end
     if h.text then h.text:SetText(label) end
   end
 end
 
 -- ---------------------------------------------------------------------------
--- Refresh: lê GetChars(), reaproveita o pool, redimensiona a janela
+-- Refresh
 -- ---------------------------------------------------------------------------
-local function Refresh()
+Refresh = function()
   if not frame then return end
   UpdateHeaders()
+
   local chars = KA.GetChars()
   local n = #chars
 
-  for i = 1, n do
-    local row = rows[i]
-    if not row then
-      row = CreateRow(frame)
-      rows[i] = row
+  -- resumo
+  if frame.summary then
+    local s = KA.GetSummary and KA.GetSummary() or { full = 0, rewards = 0, total = 0 }
+    if (s.total or 0) == 0 then
+      frame.summary:SetText("|cff888888" .. L.SUMMARY_EMPTY .. "|r")
+    else
+      frame.summary:SetText(string.format("|cffcfcfcf" .. L.SUMMARY .. "|r",
+        s.full or 0, s.total or 0, s.rewards or 0, s.total or 0))
     end
-    PopulateRow(row, chars[i], i)
+  end
+
+  -- largura do scrollChild
+  local sw = (frame.scroll and frame.scroll:GetWidth()) or (FRAME_W - 34)
+  if sw and sw > 0 then scrollChild:SetWidth(sw) end
+
+  -- valida o expandido (pode ter sido removido/ocultado)
+  if expandedKey then
+    local found = false
+    for _, e in ipairs(chars) do if e.key == expandedKey then found = true; break end end
+    if not found then expandedKey = nil end
+  end
+
+  if detailFrame then detailFrame:Hide() end
+
+  local y = 0
+  for i = 1, n do
+    local entry = chars[i]
+    local row = rows[i]
+    if not row then row = CreateRow(scrollChild); rows[i] = row end
+    PopulateRow(row, entry, i)
     row:ClearAllPoints()
-    row:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -(ROWS_TOP + (i - 1) * ROW_H))
+    row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -y)
+    row:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, -y)
     row:Show()
+    y = y + ROW_H
+
+    if expandedKey == entry.key then
+      local h = PopulateDetail(entry)
+      detailFrame:ClearAllPoints()
+      detailFrame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -y)
+      detailFrame:SetPoint("TOPRIGHT", scrollChild, "TOPRIGHT", 0, -y)
+      detailFrame:Show()
+      y = y + (h or 0)
+    end
   end
-  for i = n + 1, #rows do
-    rows[i]:Hide()
-  end
+  for i = n + 1, #rows do rows[i]:Hide() end
 
   if frame.empty then frame.empty:SetShown(n == 0) end
+  scrollChild:SetHeight(math.max(y, 1))
+end
 
-  local bodyRows = (n > 0) and n or 1
-  frame:SetHeight(ROWS_TOP + bodyRows * ROW_H + 14)
+-- ---------------------------------------------------------------------------
+-- Posição persistida
+-- ---------------------------------------------------------------------------
+local function SavePosition(self)
+  local p, _, rp, x, y = self:GetPoint()
+  if KrononAltsDB then
+    KrononAltsDB.pos = { point = p, relPoint = rp, x = x, y = y }
+  end
+end
+
+local function ApplyPosition(self)
+  local pos = KrononAltsDB and KrononAltsDB.pos
+  self:ClearAllPoints()
+  if type(pos) == "table" and pos.point then
+    self:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, pos.x or 0, pos.y or 0)
+  else
+    self:SetPoint("CENTER")
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -483,70 +760,104 @@ local function BuildFrame()
   if frame then return end
 
   frame = CreateFrame("Frame", "KrononAltsFrame", UIParent, "BackdropTemplate")
-  frame:SetSize(FRAME_W, 220)
-  frame:SetPoint("CENTER")
+  frame:SetSize(FRAME_W, FRAME_H)
   frame:SetFrameStrata("HIGH")
   frame:SetClampedToScreen(true)
   frame:SetMovable(true)
-  frame:EnableMouse(true)
-  frame:RegisterForDrag("LeftButton")
-  frame:SetScript("OnDragStart", frame.StartMoving)
-  frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+  ApplyPosition(frame)
 
   if frame.SetBackdrop then
     frame:SetBackdrop({
-      bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-      tile = true, tileSize = 16, edgeSize = 16,
-      insets = { left = 4, right = 4, top = 4, bottom = 4 },
+      bgFile = "Interface\\Buttons\\WHITE8X8",
+      edgeFile = "Interface\\Buttons\\WHITE8X8",
+      edgeSize = 1,
     })
-    frame:SetBackdropColor(0.05, 0.05, 0.06, 0.96)
-    frame:SetBackdropBorderColor(0.30, 0.30, 0.35, 1)
+    frame:SetBackdropColor(BG[1], BG[2], BG[3], 1)
+    frame:SetBackdropBorderColor(0, 0, 0, 0.85)
   end
 
   tinsert(UISpecialFrames, "KrononAltsFrame") -- ESC fecha
 
-  -- título
-  local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-  title:SetPoint("TOPLEFT", 14, -10)
+  -- TITLEBAR (preto @50%, alça de arrastar)
+  local tb = CreateFrame("Frame", nil, frame)
+  tb:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
+  tb:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -1, -1)
+  tb:SetHeight(TOP_TITLE)
+  tb:EnableMouse(true)
+  tb:RegisterForDrag("LeftButton")
+  tb:SetScript("OnDragStart", function() frame:StartMoving() end)
+  tb:SetScript("OnDragStop", function() frame:StopMovingOrSizing(); SavePosition(frame) end)
+  local tbbg = tb:CreateTexture(nil, "BACKGROUND")
+  tbbg:SetAllPoints()
+  tbbg:SetColorTexture(0, 0, 0, 0.50)
+
+  local tbicon = tb:CreateTexture(nil, "ARTWORK")
+  tbicon:SetSize(16, 16)
+  tbicon:SetPoint("LEFT", tb, "LEFT", 8, 0)
+  tbicon:SetTexture("Interface\\Icons\\INV_Misc_Note_01")
+  tbicon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+
+  local title = tb:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  title:SetPoint("LEFT", tbicon, "RIGHT", 6, 0)
   title:SetText(L.TITLE)
-  title:SetTextColor(ACCENT[1], ACCENT[2], ACCENT[3])
+  title:SetTextColor(1, 1, 1)
 
-  -- botão fechar
   local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-  close:SetPoint("TOPRIGHT", 2, 2)
+  close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 1, 1)
+  close:SetFrameLevel(tb:GetFrameLevel() + 5)
+  close:SetScript("OnClick", function() frame:Hide() end)
 
-  -- countdown de reset
-  local cd = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  cd:SetPoint("TOPLEFT", 14, -34)
-  cd:SetJustifyH("LEFT")
+  -- countdown na titlebar (entre título e X)
+  local cd = tb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  cd:SetPoint("RIGHT", close, "LEFT", -6, 0)
+  cd:SetJustifyH("RIGHT")
   frame.countdown = cd
 
-  -- divisória
-  local div = frame:CreateTexture(nil, "ARTWORK")
-  div:SetColorTexture(0.4, 0.4, 0.45, 0.5)
-  div:SetHeight(1)
-  div:SetPoint("TOPLEFT", 10, -52)
-  div:SetPoint("TOPRIGHT", -10, -52)
+  -- LINHA DE RESUMO
+  local summary = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  summary:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -(TOP_TITLE + 4))
+  summary:SetPoint("RIGHT", frame, "RIGHT", -120, 0)
+  summary:SetJustifyH("LEFT")
+  frame.summary = summary
 
-  -- cabeçalho de colunas (clicável p/ ordenar nas colunas ordenáveis)
+  -- ocultar concluídos (canto direito da linha de resumo)
+  local hideCb = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+  hideCb:SetSize(20, 20)
+  hideCb:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -(TOP_TITLE + 2))
+  local cbLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  cbLabel:SetPoint("RIGHT", hideCb, "LEFT", -2, 0)
+  cbLabel:SetText(L.HIDE_COMPLETED)
+  cbLabel:SetTextColor(COLOR_HEADER[1], COLOR_HEADER[2], COLOR_HEADER[3])
+  hideCb:SetChecked(KA.GetHideCompleted and KA.GetHideCompleted() or false)
+  hideCb:SetScript("OnClick", function(self)
+    if KA.SetHideCompleted then KA.SetHideCompleted(self:GetChecked()) end
+  end)
+  frame.hideCb = hideCb
+
+  -- CABEÇALHO DE COLUNAS (preto @30%)
+  local headerBar = CreateFrame("Frame", nil, frame)
+  headerBar:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -(TOP_TITLE + TOP_SUMMARY))
+  headerBar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -1, -(TOP_TITLE + TOP_SUMMARY))
+  headerBar:SetHeight(TOP_HEADER)
+  local hbbg = headerBar:CreateTexture(nil, "BACKGROUND")
+  hbbg:SetAllPoints()
+  hbbg:SetColorTexture(0, 0, 0, 0.30)
+
   frame.headers = {}
   for _, col in ipairs(COLS) do
-    local h = CreateFrame("Button", nil, frame)
-    h:SetPoint("TOPLEFT", frame, "TOPLEFT", col.x, -58)
-    h:SetSize(col.w, 16)
-
+    local h = CreateFrame("Button", nil, headerBar)
+    h:SetPoint("LEFT", headerBar, "LEFT", col.x, 0)
+    h:SetSize(col.w, TOP_HEADER)
     local fs = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     fs:SetAllPoints()
     fs:SetJustifyH(col.justify)
     fs:SetWordWrap(false)
     fs:SetTextColor(COLOR_HEADER[1], COLOR_HEADER[2], COLOR_HEADER[3])
     h.text = fs
-    h.baseLabel = HEADER_LABEL[col.key] or col.key
+    h.baseLabel = col.label or col.key
     fs:SetText(h.baseLabel)
-
-    if SORTABLE[col.key] then
-      local sortKey = col.key
+    if col.sort then
+      local sortKey = col.sort
       h:SetScript("OnClick", function() if KA.SetSort then KA.SetSort(sortKey) end end)
       h:SetScript("OnEnter", function(self)
         self.text:SetTextColor(1, 1, 1)
@@ -559,41 +870,45 @@ local function BuildFrame()
         GameTooltip:Hide()
       end)
     end
-
     frame.headers[col.key] = h
   end
 
-  -- toggle "ocultar concluídos"
-  local hideCb = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
-  hideCb:SetSize(22, 22)
-  hideCb:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -10, -30)
-  local cbLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  cbLabel:SetPoint("RIGHT", hideCb, "LEFT", -2, 0)
-  cbLabel:SetText(L.HIDE_COMPLETED)
-  cbLabel:SetTextColor(COLOR_HEADER[1], COLOR_HEADER[2], COLOR_HEADER[3])
-  hideCb:SetChecked(KA.GetHideCompleted and KA.GetHideCompleted() or false)
-  hideCb:SetScript("OnClick", function(self)
-    if KA.SetHideCompleted then KA.SetHideCompleted(self:GetChecked()) end
+  -- SCROLLFRAME
+  local scroll = CreateFrame("ScrollFrame", "KrononAltsScroll", frame, "UIPanelScrollFrameTemplate")
+  scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -CONTENT_TOP)
+  scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -26, 8)
+  frame.scroll = scroll
+
+  scrollChild = CreateFrame("Frame", nil, scroll)
+  scrollChild:SetSize(FRAME_W - 34, 1)
+  scroll:SetScrollChild(scrollChild)
+
+  scroll:EnableMouseWheel(true)
+  scroll:SetScript("OnMouseWheel", function(self, delta)
+    local cur = self:GetVerticalScroll() or 0
+    local maxs = self:GetVerticalScrollRange() or 0
+    local new = cur - (delta or 0) * 40
+    if new < 0 then new = 0 elseif new > maxs then new = maxs end
+    self:SetVerticalScroll(new)
   end)
-  frame.hideCb = hideCb
 
   -- estado vazio
   local empty = frame:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-  empty:SetPoint("TOP", 0, -ROWS_TOP - 8)
-  empty:SetWidth(FRAME_W - 48)
+  empty:SetPoint("TOP", scroll, "TOP", 0, -20)
+  empty:SetWidth(FRAME_W - 60)
   empty:SetJustifyH("CENTER")
   empty:SetText(L.EMPTY)
   empty:Hide()
   frame.empty = empty
 
-  -- ticker do countdown (throttle 1s)
+  -- ticker do countdown (1s)
   frame.elapsed = 1
   frame:SetScript("OnUpdate", function(self, e)
     self.elapsed = self.elapsed + e
     if self.elapsed < 1 then return end
     self.elapsed = 0
     local info = KA.GetResetInfo()
-    self.countdown:SetText(string.format("|cffaaaaaa%s|r %s    |cffaaaaaa%s|r %s",
+    self.countdown:SetText(string.format("|cffaaaaaa%s|r %s   |cffaaaaaa%s|r %s",
       L.RESET_WEEKLY, FormatCountdown(info.weeklySeconds),
       L.RESET_DAILY, FormatCountdown(info.dailySeconds)))
   end)
@@ -614,13 +929,12 @@ function KA.Toggle()
   end
 end
 
--- refresh ao vivo quando o snapshot do char logado muda
 KA.bus:Register(function()
   if frame and frame:IsShown() then Refresh() end
 end)
 
 -- ---------------------------------------------------------------------------
--- Botão de minimapa CUSTOM (sem libs) — arrastável no anel, ângulo salvo em DB
+-- Botão de minimapa CUSTOM (sem libs) — ângulo salvo em DB
 -- ---------------------------------------------------------------------------
 local minimapBtn
 

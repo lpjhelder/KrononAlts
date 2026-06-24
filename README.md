@@ -1,22 +1,26 @@
 # KrononAlts
 
-Painel **cross-character** de objetivos semanais para o ecossistema **Kronon**. Mostra, numa tabela única, o que falta de **Grande Cofre**, **Mítica+** e **lockouts de raide** em cada um dos seus personagens — core e alts.
+Painel **cross-character** de objetivos semanais para o ecossistema **Kronon**. Mostra, numa janela única, o que falta de **Grande Cofre**, **Mítica+**, **lockouts de raide**, **moedas** e **ouro** em cada um dos seus personagens — core e alts.
 
-## O que mostra
+## A janela
+
+Painel escuro flat com uma **titlebar** (ícone, título e o countdown de reset semanal/diário) que também é a alça de arrastar — **a posição é salva** entre sessões. Abaixo, uma **linha de resumo** ("X/Y cofres prontos · N com recompensa esperando · M personagens") e a **tabela** (com rolagem para muitos alts).
+
+## Colunas
 
 | Coluna | Conteúdo |
 |--------|----------|
-| **Personagem** | Nome em cor de classe + ilvl. Selo `(!)` quando o snapshot é anterior ao reset atual. |
-| **Cofre** | As 3 trilhas do Grande Cofre — Mítica+ · Raide · Mundo — como slots preenchidos (`X/3` cada). `!` dourado quando há recompensa não coletada. |
-| **M+** | Número de runs concluídas nesta semana. |
-| **Chave** | Sua keystone atual (nível + masmorra). |
-| **Rating** | Rating geral de Mítica+ da season. |
-| **Crests** | Moeda de upgrade do tier mais alto que você tem; tooltip lista todas as crests da season e fragmentos de Delve com totais e progresso semanal. |
-| **Raide** | Lockout mais relevante (bosses mortos/total por dificuldade). |
+| **Personagem** | Ícone de classe + nome em cor de classe. Selo `(!)` quando o snapshot é anterior ao reset atual. |
+| **ilvl** | Nível de item equipado. |
+| **Rating** | Rating geral de Mítica+ da season, colorido por faixa. |
+| **Chave** | Sua keystone atual (masmorra abreviada + nível). |
+| **Cofre** | As 6 mini-*pips* do Grande Cofre — 3 da trilha de Mítica+ e 3 da raide — preenchidas (cor de qualidade) ou em contorno. |
+| **Crests** | Moeda de upgrade do tier mais alto que você tem; dourada quando o cap semanal foi atingido. |
+| **Ouro** | Ouro do personagem. |
 
-Passe o mouse em qualquer célula para o **detalhe** (tooltip de 2 camadas): o breakdown das 3 trilhas do cofre com ilvl previsto por slot **e o que falta pro próximo slot de cada trilha**, a lista completa de lockouts de raide, a maior chave da semana, as moedas da season, etc.
+**Clique numa linha** para **expandir** um painel de detalhe: retrato (classe/spec/realm) + próxima ação, Grande Cofre por slot, **Mítica+ por masmorra**, lockouts de raide, **moedas & crests**, **semanais** (Conquista, Catalisador) e **profissões** (conhecimento). Apenas uma linha fica aberta por vez.
 
-**Clique nos cabeçalhos** (Personagem, Cofre, M+, Rating, Crests, Raide) para **ordenar** a tabela; a seta indica a direção. O personagem logado fica **destacado** na tabela. Marque **"Ocultar concluídos"** no topo para esconder personagens com cofre 3/3/3 e sem recompensa pendente.
+**Clique nos cabeçalhos** (Personagem, ilvl, Rating, Cofre, Crests, Ouro) para **ordenar** a tabela; a seta indica a direção. O personagem logado fica **destacado** com acento azul; quem tem recompensa de cofre pronta ganha realce dourado. Marque **"Ocultar concluídos"** no topo para esconder personagens com cofre 3/3/3 e sem recompensa pendente.
 
 ## Como funciona
 

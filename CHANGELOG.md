@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.3.0
+
+**Português**
+
+- **Nova janela**: painel escuro flat redesenhado, com titlebar (ícone, título e countdown de reset semanal/diário) que também é a alça de arrastar.
+- **Posição salva**: a janela lembra onde você a deixou entre sessões e relogs.
+- **Linha de resumo**: "X/Y cofres prontos · N com recompensa esperando · M personagens" no topo.
+- **Tabela compacta** com rolagem para muitos alts: ícone + nome em cor de classe, ilvl, rating de M+ (cor por faixa), chave, cofre em mini-pips (3 M+ + 3 raide) e a nova coluna de **Ouro**.
+- **Linha expansível**: clique num personagem para abrir um painel de detalhe com Grande Cofre por slot, **Mítica+ por masmorra**, lockouts de raide, moedas & crests, **semanais** (Conquista, Catalisador) e **profissões** (conhecimento).
+- **Personagem logado** destacado com acento azul; quem tem recompensa de cofre pronta ganha realce dourado.
+- **Novo**: captura de ouro, melhor chave por masmorra da season, semanais e profissões (defensivo — mostra "—" quando o dado ainda não está disponível).
+
+**English**
+
+- **New window**: redesigned flat dark panel with a titlebar (icon, title and weekly/daily reset countdown) that doubles as the drag handle.
+- **Saved position**: the window now remembers where you left it across sessions and relogs.
+- **Summary line**: "X/Y vaults full · N with a reward waiting · M characters" at the top.
+- **Compact table** with scrolling for many alts: class icon + class-colored name, ilvl, M+ rating (color by bracket), keystone, vault mini-pips (3 M+ + 3 raid) and the new **Gold** column.
+- **Expandable row**: click a character to open a detail panel with per-slot Great Vault, **Mythic+ by dungeon**, raid lockouts, currencies & crests, **weeklies** (Conquest, Catalyst) and **professions** (knowledge).
+- **Logged character** highlighted with a blue accent; characters with a ready vault reward get a golden highlight.
+- **New**: capture of gold, season best key per dungeon, weeklies and professions (defensive — shows "—" when the data isn't available yet).
+
+**Español**
+
+- **Nueva ventana**: panel oscuro plano rediseñado, con una barra de título (icono, título y cuenta atrás del reinicio semanal/diario) que también sirve para arrastrar.
+- **Posición guardada**: la ventana ahora recuerda dónde la dejaste entre sesiones y reconexiones.
+- **Línea de resumen**: "X/Y cámaras listas · N con recompensa esperando · M personajes" arriba.
+- **Tabla compacta** con desplazamiento para muchos personajes: icono + nombre en color de clase, ilvl, puntuación de M+ (color por rango), piedra, cámara en mini-pips (3 M+ + 3 banda) y la nueva columna de **Oro**.
+- **Fila expandible**: haz clic en un personaje para abrir un panel de detalle con la Gran Cámara por ranura, **Mítica+ por mazmorra**, bloqueos de banda, monedas y crests, **semanales** (Conquista, Catalizador) y **profesiones** (conocimiento).
+- **Personaje conectado** destacado con un acento azul; los personajes con recompensa de cámara lista reciben un realce dorado.
+- **Nuevo**: captura de oro, mejor piedra por mazmorra de la temporada, semanales y profesiones (defensivo — muestra "—" cuando el dato aún no está disponible).
+
 ## 0.2.0
 
 **Português**

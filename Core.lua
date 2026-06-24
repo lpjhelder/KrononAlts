@@ -85,6 +85,25 @@ local EN = {
   MM_FULL          = "%d with a full vault",
   MM_REWARDS       = "%d with rewards waiting",
   MM_HINT          = "Left-click to open  •  drag to move",
+  COL_ILVL         = "ilvl",
+  COL_GOLD         = "Gold",
+  SUMMARY          = "%d/%d vaults full  \194\183  %d with a reward waiting  \194\183  %d characters",
+  SUMMARY_EMPTY    = "No characters yet — log in on your alts",
+  DETAIL_VAULT     = "Great Vault",
+  DETAIL_MPLUS     = "Mythic+ by dungeon",
+  MPLUS_TODO       = "to do",
+  DETAIL_RAID      = "Raid lockouts",
+  DETAIL_CURR      = "Currencies & Crests",
+  DETAIL_WEEKLY    = "Weeklies",
+  DETAIL_PROF      = "Professions",
+  WEEKLY_CONQUEST  = "Conquest",
+  WEEKLY_CATALYST  = "Catalyst charges",
+  PROF_KNOWLEDGE   = "Knowledge",
+  PROF_OPEN_HINT   = "open the profession in-game to refresh",
+  SLOT_FILLED      = "ilvl %d",
+  SLOT_NEED        = "needs +%d",
+  CLICK_EXPAND     = "Click a row to expand  \194\183  right-click for options",
+  NO_DATA          = "No data yet — log in on this character.",
 }
 
 local PT = {
@@ -130,6 +149,23 @@ local PT = {
   MM_FULL          = "%d com cofre cheio",
   MM_REWARDS       = "%d com recompensa pendente",
   MM_HINT          = "Clique-esquerdo abre  •  arraste para mover",
+  COL_GOLD         = "Ouro",
+  SUMMARY          = "%d/%d cofres prontos  \194\183  %d com recompensa esperando  \194\183  %d personagens",
+  SUMMARY_EMPTY    = "Nenhum personagem ainda — logue nos seus alts",
+  DETAIL_VAULT     = "Grande Cofre",
+  DETAIL_MPLUS     = "Mítica+ por masmorra",
+  MPLUS_TODO       = "a fazer",
+  DETAIL_RAID      = "Lockouts de raide",
+  DETAIL_CURR      = "Moedas & Crests",
+  DETAIL_WEEKLY    = "Semanais",
+  DETAIL_PROF      = "Profissões",
+  WEEKLY_CONQUEST  = "Conquista",
+  WEEKLY_CATALYST  = "Cargas de Catalisador",
+  PROF_KNOWLEDGE   = "Conhecimento",
+  PROF_OPEN_HINT   = "abra a profissão no jogo para atualizar",
+  SLOT_NEED        = "falta +%d",
+  CLICK_EXPAND     = "Clique numa linha para expandir  \194\183  clique-direito: opções",
+  NO_DATA          = "Sem dados ainda — logue neste personagem.",
 }
 
 local ES = {
@@ -175,6 +211,23 @@ local ES = {
   MM_FULL          = "%d con cámara llena",
   MM_REWARDS       = "%d con recompensas pendientes",
   MM_HINT          = "Clic izquierdo abre  •  arrastra para mover",
+  COL_GOLD         = "Oro",
+  SUMMARY          = "%d/%d cámaras listas  \194\183  %d con recompensa esperando  \194\183  %d personajes",
+  SUMMARY_EMPTY    = "Aún no hay personajes — entra con tus alts",
+  DETAIL_VAULT     = "Gran Cámara",
+  DETAIL_MPLUS     = "Mítica+ por mazmorra",
+  MPLUS_TODO       = "por hacer",
+  DETAIL_RAID      = "Bloqueos de banda",
+  DETAIL_CURR      = "Monedas y Crests",
+  DETAIL_WEEKLY    = "Semanales",
+  DETAIL_PROF      = "Profesiones",
+  WEEKLY_CONQUEST  = "Conquista",
+  WEEKLY_CATALYST  = "Cargas de Catalizador",
+  PROF_KNOWLEDGE   = "Conocimiento",
+  PROF_OPEN_HINT   = "abre la profesión en el juego para actualizar",
+  SLOT_NEED        = "falta +%d",
+  CLICK_EXPAND     = "Clic en una fila para expandir  \194\183  clic derecho: opciones",
+  NO_DATA          = "Aún sin datos — entra con este personaje.",
 }
 
 -- Base EN + overlay do locale do cliente; esMX cai em esES; chave inexistente
@@ -217,8 +270,17 @@ KA.bus = NewEventBus()
 local DB
 local function InitDB()
   if type(KrononAltsDB) ~= "table" then KrononAltsDB = {} end
-  KrononAltsDB.version = 1
   if type(KrononAltsDB.chars) ~= "table" then KrononAltsDB.chars = {} end
+  -- migração v2: a captura antiga de profissões pegava TODAS as do jogo; limpa as
+  -- listas corrompidas (>2 entradas) pra re-capturar só as 2 do char ao logar nele.
+  if KrononAltsDB.version ~= 2 then
+    for _, c in pairs(KrononAltsDB.chars) do
+      if type(c) == "table" and type(c.professions) == "table" and #c.professions > 2 then
+        c.professions = nil
+      end
+    end
+  end
+  KrononAltsDB.version = 2
   if type(KrononAltsDB.minimap) ~= "table" then KrononAltsDB.minimap = { angle = 215, hide = false } end
   if KrononAltsDB.hideCompleted == nil then KrononAltsDB.hideCompleted = false end
   -- KrononAltsDB.sort = { key, dir } — nil = ordenação padrão (logado primeiro)
@@ -429,6 +491,143 @@ local function SnapshotCurrencies()
   return out
 end
 
+-- Ouro do char (em cobre). PLAYER_MONEY força recaptura; 0 é tratado como
+-- "ainda não pronto" e NÃO sobrescreve o valor salvo (evita zerar o alt).
+local function SnapshotGold()
+  if type(GetMoney) ~= "function" then return nil end
+  local ok, money = pcall(GetMoney)
+  if ok and type(money) == "number" and money > 0 then return money end
+  return nil
+end
+
+-- Nome da spec ativa (defensivo — usado no painel de detalhe)
+local function SnapshotSpec()
+  if type(GetSpecialization) ~= "function" or type(GetSpecializationInfo) ~= "function" then
+    return nil
+  end
+  local ok, idx = pcall(GetSpecialization)
+  if not ok or type(idx) ~= "number" then return nil end
+  local ok2, _, name = pcall(GetSpecializationInfo, idx)
+  if ok2 and type(name) == "string" and name ~= "" then return name end
+  return nil
+end
+
+-- Melhor chave POR MASMORRA NESTA SEMANA (não o recorde da season). Uma masmorra
+-- sem run concluída na semana fica SEM nível (a UI mostra como "falta fazer"), pra
+-- o jogador saber o que ainda dá pra correr antes do reset.
+local function SnapshotMythicPlusByMap()
+  local out = {}
+  if not (C_ChallengeMode and C_ChallengeMode.GetMapTable) then return out end
+  local ok, maps = pcall(C_ChallengeMode.GetMapTable)
+  if not ok or type(maps) ~= "table" then return out end
+
+  -- melhor nível CONCLUÍDO por masmorra NESTA SEMANA — GetRunHistory(false=só esta semana)
+  local weekBest = {}
+  if C_MythicPlus and C_MythicPlus.GetRunHistory then
+    local ok0, runs = pcall(C_MythicPlus.GetRunHistory, false, false)
+    if ok0 and type(runs) == "table" then
+      for _, r in ipairs(runs) do
+        if type(r) == "table" and type(r.mapChallengeModeID) == "number" and type(r.level) == "number" then
+          local id = r.mapChallengeModeID
+          if not weekBest[id] or r.level > weekBest[id] then weekBest[id] = r.level end
+        end
+      end
+    end
+  end
+
+  for _, mapID in ipairs(maps) do
+    if type(mapID) == "number" then
+      local entry = { mapID = mapID }
+      if C_ChallengeMode.GetMapUIInfo then
+        local ok2, name, _, _, texture = pcall(C_ChallengeMode.GetMapUIInfo, mapID)
+        if ok2 then
+          if type(name) == "string" and name ~= "" then entry.name = name end
+          if type(texture) == "number" and texture > 0 then entry.texture = texture end
+        end
+      end
+      local lvl = weekBest[mapID]
+      if type(lvl) == "number" and lvl > 0 then entry.level = lvl; entry.done = true end
+      out[#out + 1] = entry
+    end
+  end
+  -- as que FALTAM (sem nível esta semana) primeiro, depois por nível desc, depois nome
+  table.sort(out, function(a, b)
+    local la, lb = a.level or 0, b.level or 0
+    if (la == 0) ~= (lb == 0) then return la == 0 end
+    if la ~= lb then return la > lb end
+    return (a.name or "") < (b.name or "")
+  end)
+  return out
+end
+
+-- Semanais lidas a frio (leitura via C_CurrencyInfo). Defensivo: só grava o que
+-- vier com nome válido. IDs do Midnight S1 podem variar — validar com /kalts curr.
+local function SnapshotWeeklies()
+  local out = {}
+  if not (C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo) then return out end
+  local function read(id)
+    local ok, info = pcall(C_CurrencyInfo.GetCurrencyInfo, id)
+    if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then
+      return info
+    end
+  end
+  local conq = read(1602) -- Conquest (cap semanal de PvP)
+  if conq then
+    out.conquest = {
+      name   = conq.name,
+      earned = conq.quantityEarnedThisWeek or 0,
+      cap    = conq.maxWeeklyQuantity or 0,
+      total  = conq.quantity or 0,
+    }
+  end
+  local cat = read(2167) -- Catalyst Charges (Warband-wide)
+  if cat then
+    out.catalyst = {
+      name     = cat.name,
+      quantity = cat.quantity or 0,
+      max      = cat.maxQuantity or 0,
+    }
+  end
+  return out
+end
+
+-- Profissões: nível + conhecimento não-gasto (leitura fria) e concentração
+-- quando disponível. Só lê se as tradeskills estiverem carregadas; caso vazio,
+-- mantém o snapshot anterior (não sobrescreve). Totalmente defensivo.
+local function SnapshotProfessions()
+  local out = {}
+  if not (GetProfessions and GetProfessionInfo) then return out end
+  -- GetProfessions() devolve os índices SÓ das profissões que o personagem TEM
+  -- (prof1, prof2, arqueologia, pesca, culinária). Pegamos só as 2 PRINCIPAIS.
+  local profIdx = { GetProfessions() }
+  for i = 1, 2 do
+    local idx = profIdx[i]
+    if type(idx) == "number" then
+      local name, _, skillLevel, maxSkillLevel, _, _, skillLine = GetProfessionInfo(idx)
+      if type(name) == "string" and name ~= "" then
+        local entry = { name = name, skillLine = skillLine }
+        if type(skillLevel) == "number" then entry.skillLevel = skillLevel end
+        if type(maxSkillLevel) == "number" then entry.maxSkillLevel = maxSkillLevel end
+        -- Conhecimento não-gasto da season (currency oculta por profissão) — defensivo
+        if type(skillLine) == "number" and C_ProfSpecs and C_ProfSpecs.GetCurrencyInfoForSkillLine then
+          local ok3, ci = pcall(C_ProfSpecs.GetCurrencyInfoForSkillLine, skillLine)
+          if ok3 and type(ci) == "table" then
+            local cid = ci.currencyID or ci.numKnowledgeID or ci.currencyType
+            if type(cid) == "number" and C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo then
+              local ok4, kinfo = pcall(C_CurrencyInfo.GetCurrencyInfo, cid)
+              if ok4 and type(kinfo) == "table" and type(kinfo.quantity) == "number" then
+                entry.knowledge = kinfo.quantity
+              end
+            end
+          end
+        end
+        out[#out + 1] = entry
+      end
+    end
+  end
+  return out
+end
+
 -- ---------------------------------------------------------------------------
 -- Zeragem (reset semanal e virada de season)
 -- ---------------------------------------------------------------------------
@@ -509,6 +708,15 @@ local function Snapshot()
   rec.mplus = SnapshotMythicPlus()
   rec.raids = SnapshotRaids()
   rec.currencies = SnapshotCurrencies()
+
+  -- Campos que dependem de dados que podem não estar carregados ainda:
+  -- só sobrescrevem o snapshot anterior quando há valor novo (não zeram o alt).
+  local gold = SnapshotGold(); if gold then rec.gold = gold end
+  local spec = SnapshotSpec(); if spec then rec.spec = spec end
+  local maps = SnapshotMythicPlusByMap(); if #maps > 0 then rec.mplusMaps = maps end
+  rec.professions = SnapshotProfessions() -- sempre reflete o char logado (limpa lista antiga)
+  local weeklies = SnapshotWeeklies(); if next(weeklies) then rec.weeklies = weeklies end
+
   if season then rec.season = season end
   local wsec = GetWeeklySeconds(); if wsec > 0 then rec.weeklyResetAt = now + wsec end -- só grava com a API pronta (evita reset prematuro)
   local dsec = GetDailySeconds(); if dsec > 0 then rec.dailyResetAt = now + dsec end
@@ -637,6 +845,8 @@ local SortMetrics = {
   rating = function(d) return (d.mplus and d.mplus.rating) or 0 end,
   crest  = function(d) return crestSum(d) end,
   raid   = function(d) return raidMetric(d) end,
+  ilvl   = function(d) return d.ilvl or 0 end,
+  gold   = function(d) return d.gold or 0 end,
 }
 
 -- Ordenação padrão (sem critério escolhido): char logado primeiro, depois nível/ilvl/nome
@@ -768,6 +978,8 @@ f:RegisterEvent("CHALLENGE_MODE_COMPLETED")
 f:RegisterEvent("CHALLENGE_MODE_MAPS_UPDATE")
 f:RegisterEvent("BAG_UPDATE_DELAYED")
 f:RegisterEvent("UPDATE_INSTANCE_INFO")
+f:RegisterEvent("PLAYER_MONEY")
+f:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
 f:RegisterEvent("PLAYER_LOGOUT")
 
 f:SetScript("OnEvent", function(_, event, arg1)

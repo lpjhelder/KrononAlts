@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.2
+**Português**
+- **Novo:** no modo **PvP**, o tooltip ao passar o mouse num personagem mostra o rating por modalidade (2v2/3v3/RBG/Solo Shuffle/Blitz), a Conquista e a honra — antes mostrava só o M+.
+
+**English**
+- **New:** in **PvP** mode, hovering a character now shows rating per bracket (2v2/3v3/RBG/Solo Shuffle/Blitz), Conquest and honor — it used to show only M+.
+
+**Español**
+- **Nuevo:** en modo **PvP**, al pasar el ratón por un personaje ahora muestra la clasificación por modalidad (2c2/3c3/CBC/Combate Singular/Blitz), Conquista y honor — antes mostraba solo M+.
+
 ## 0.7.1
 
 No modo PvP, a tabela principal agora mostra Rating e Conquista. / In PvP mode, the main table now shows Rating and Conquest. / En modo PvP, la tabla principal ahora muestra Rating y Conquista.

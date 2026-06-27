@@ -378,16 +378,38 @@ local function CreateRow(parent)
     if d.updatedAt then
       GameTooltip:AddLine(string.format(L.TT_UPDATED, FormatAgo(time() - d.updatedAt)), 0.6, 0.8, 1)
     end
-    -- M+ exato (a coluna mostra só "+N"; o rating preciso fica aqui)
-    local mp = d.mplus
-    if type(mp) == "table" then
-      if (mp.rating or 0) > 0 then
-        GameTooltip:AddLine(string.format(L.TT_RATING, mp.rating), 0.7, 0.7, 0.7)
+    if KA.GetMode() == "pvp" then
+      -- modo PvP: o hover mostra rating por modalidade + Conquista + honra (espelha a coluna/detalhe)
+      local pvp = d.pvp
+      if type(pvp) == "table" then
+        if type(pvp.ratings) == "table" then
+          for _, r in ipairs(pvp.ratings) do
+            if (r.rating or 0) > 0 then
+              local col = RatingColor(r.rating)
+              GameTooltip:AddLine((L[r.key] or r.key or "?") .. ": " .. r.rating, col[1], col[2], col[3])
+            end
+          end
+        end
+        if type(pvp.conquest) == "table" and ((pvp.conquest.cap or 0) > 0 or (pvp.conquest.earned or 0) > 0) then
+          local cap, earned = pvp.conquest.cap or 0, pvp.conquest.earned or 0
+          GameTooltip:AddLine(L.WEEKLY_CONQUEST .. ": " .. earned .. (cap > 0 and ("/" .. cap) or ""), 0.7, 0.7, 0.7)
+        end
+        if type(pvp.honorLevel) == "number" and pvp.honorLevel > 0 then
+          GameTooltip:AddLine(L.PVP_HONOR .. ": " .. pvp.honorLevel, 0.7, 0.7, 0.7)
+        end
       end
-      if mp.keystoneLevel then
-        local kt = string.format(L.TT_KEYSTONE, mp.keystoneLevel)
-        if mp.keystoneMap and mp.keystoneMap ~= "" then kt = kt .. " " .. mp.keystoneMap end
-        GameTooltip:AddLine(kt, 0.7, 0.7, 0.7)
+    else
+      -- M+ exato (a coluna mostra só "+N"; o rating preciso fica aqui)
+      local mp = d.mplus
+      if type(mp) == "table" then
+        if (mp.rating or 0) > 0 then
+          GameTooltip:AddLine(string.format(L.TT_RATING, mp.rating), 0.7, 0.7, 0.7)
+        end
+        if mp.keystoneLevel then
+          local kt = string.format(L.TT_KEYSTONE, mp.keystoneLevel)
+          if mp.keystoneMap and mp.keystoneMap ~= "" then kt = kt .. " " .. mp.keystoneMap end
+          GameTooltip:AddLine(kt, 0.7, 0.7, 0.7)
+        end
       end
     end
     if self._stale then

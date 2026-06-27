@@ -66,6 +66,39 @@ local function RatingColor(r)
   return COLOR_MISSING
 end
 
+-- Cor por faixa de rating de PvP (escala simples, independente da API de M+):
+-- <1400 cinza · <1800 verde · <2100 azul · <2400 roxo · >=2400 laranja.
+local function PvpRatingColor(r)
+  r = r or 0
+  if r >= 2400 then return { 1.00, 0.50, 0.00 } end -- laranja
+  if r >= 2100 then return { 0.64, 0.21, 0.93 } end -- roxo
+  if r >= 1800 then return { 0.00, 0.44, 0.87 } end -- azul
+  if r >= 1400 then return { 0.12, 1.00, 0.00 } end -- verde
+  return COLOR_MISSING                              -- cinza (<1400 / sem rating)
+end
+
+-- Maior rating de PvP do char (max de d.pvp.ratings[*].rating); nil se sem dado.
+local function PvpBestRating(d)
+  local pvp = d and d.pvp
+  if type(pvp) ~= "table" or type(pvp.ratings) ~= "table" then return nil end
+  local best = nil
+  for _, r in ipairs(pvp.ratings) do
+    if type(r) == "table" and (r.rating or 0) > 0 then
+      if not best or r.rating > best then best = r.rating end
+    end
+  end
+  return best
+end
+
+-- Conquista da semana do char: retorna earned, cap; nil se sem dado de PvP.
+local function PvpConquest(d)
+  local pvp = d and d.pvp
+  if type(pvp) ~= "table" or type(pvp.conquest) ~= "table" then return nil end
+  local c = pvp.conquest
+  if (c.cap or 0) <= 0 and (c.earned or 0) <= 0 then return nil end
+  return c.earned or 0, c.cap or 0
+end
+
 -- ---------------------------------------------------------------------------
 -- Ícone de classe (atlas classicon-<token>; fallback CLASS_ICON_TCOORDS)
 -- ---------------------------------------------------------------------------
@@ -395,6 +428,10 @@ local function PopulateRow(row, entry, index)
   row._data, row._entry, row._key = d, entry, entry.key
   row._current, row._stale = entry.isCurrent, stale
 
+  -- modo ativo: no modo PvP a LINHA RECOLHIDA troca 2 colunas (M+→Rating, Crest→
+  -- Conquista). Em "pve"/"both" as colunas ficam exatamente como antes.
+  local mode = (KA.GetMode and KA.GetMode()) or "pve"
+
   -- fundo / acento
   if entry.isCurrent then
     row.bg:SetColorTexture(ACCENT_BLUE[1], ACCENT_BLUE[2], ACCENT_BLUE[3], 0.10)
@@ -431,16 +468,27 @@ local function PopulateRow(row, entry, index)
     row.cells.ilvl:SetText(colored(COLOR_MISSING, L.NONE))
   end
 
-  -- M+ (rating + chave fundidos): mostra "+N" da chave colorido pela faixa de
-  -- rating; sem chave mas com rating, mostra o rating. O valor exato vai no tooltip.
-  local mp = d.mplus or {}
-  local rating = mp.rating or 0
-  if mp.keystoneLevel then
-    row.cells.mplus:SetText(colored(RatingColor(rating), "+" .. mp.keystoneLevel))
-  elseif rating > 0 then
-    row.cells.mplus:SetText(colored(RatingColor(rating), tostring(rating)))
+  -- COLUNA "mplus": no modo PvP mostra o MAIOR rating de PvP do char (colorido pela
+  -- faixa de PvP); nos outros modos, o "+N" da chave de M+ fundido com o rating.
+  if mode == "pvp" then
+    local best = PvpBestRating(d)
+    if best and best > 0 then
+      row.cells.mplus:SetText(colored(PvpRatingColor(best), tostring(best)))
+    else
+      row.cells.mplus:SetText(colored(COLOR_MISSING, L.NONE))
+    end
   else
-    row.cells.mplus:SetText(colored(COLOR_MISSING, L.NONE))
+    -- M+ (rating + chave fundidos): mostra "+N" da chave colorido pela faixa de
+    -- rating; sem chave mas com rating, mostra o rating. O valor exato vai no tooltip.
+    local mp = d.mplus or {}
+    local rating = mp.rating or 0
+    if mp.keystoneLevel then
+      row.cells.mplus:SetText(colored(RatingColor(rating), "+" .. mp.keystoneLevel))
+    elseif rating > 0 then
+      row.cells.mplus:SetText(colored(RatingColor(rating), tostring(rating)))
+    else
+      row.cells.mplus:SetText(colored(COLOR_MISSING, L.NONE))
+    end
   end
 
   -- COFRE (9 pips): M+ | Raide | Delve (trilha Mundo). Um alt que só fez delves
@@ -459,34 +507,49 @@ local function PopulateRow(row, entry, index)
   for i = 1, 3 do setPip(row.pips[3 + i], slotsR[i]) end
   for i = 1, 3 do setPip(row.pips[6 + i], slotsW[i]) end
 
-  -- CREST: indicador de CAP semanal (✓ no cap, senão progresso curto da crest que
-  -- você está enchendo). Os 5 tiers em número ficam no detalhe.
-  local track, bestQty
-  if type(d.currencies) == "table" then
-    for _, c in ipairs(d.currencies) do
-      if c.kind == "crest" then
-        if (c.weeklyMax or 0) > 0 then
-          if not track
-             or (c.weekly or 0) > (track.weekly or 0)
-             or ((c.weekly or 0) == (track.weekly or 0) and (c.weeklyMax or 0) > (track.weeklyMax or 0)) then
-            track = c
+  -- COLUNA "crest": no modo PvP vira a CONQUISTA da semana (earned/cap, ✓ no cap);
+  -- nos outros modos, o indicador de cap semanal de crest.
+  if mode == "pvp" then
+    local earned, cap = PvpConquest(d)
+    if earned ~= nil then
+      if (cap or 0) > 0 and earned >= cap then
+        row.cells.crest:SetText(CHECK_ICON)
+      else
+        row.cells.crest:SetText(colored(COLOR_NEUTRAL, earned .. ((cap or 0) > 0 and ("/" .. cap) or "")))
+      end
+    else
+      row.cells.crest:SetText(colored(COLOR_MISSING, L.NONE))
+    end
+  else
+    -- CREST: indicador de CAP semanal (✓ no cap, senão progresso curto da crest que
+    -- você está enchendo). Os 5 tiers em número ficam no detalhe.
+    local track, bestQty
+    if type(d.currencies) == "table" then
+      for _, c in ipairs(d.currencies) do
+        if c.kind == "crest" then
+          if (c.weeklyMax or 0) > 0 then
+            if not track
+               or (c.weekly or 0) > (track.weekly or 0)
+               or ((c.weekly or 0) == (track.weekly or 0) and (c.weeklyMax or 0) > (track.weeklyMax or 0)) then
+              track = c
+            end
+          elseif (c.quantity or 0) > 0 and (not bestQty or c.quantity > bestQty.quantity) then
+            bestQty = c
           end
-        elseif (c.quantity or 0) > 0 and (not bestQty or c.quantity > bestQty.quantity) then
-          bestQty = c
         end
       end
     end
-  end
-  if track then
-    if (track.weekly or 0) >= (track.weeklyMax or 0) then
-      row.cells.crest:SetText(CHECK_ICON)
+    if track then
+      if (track.weekly or 0) >= (track.weeklyMax or 0) then
+        row.cells.crest:SetText(CHECK_ICON)
+      else
+        row.cells.crest:SetText(colored(COLOR_NEUTRAL, (track.weekly or 0) .. "/" .. (track.weeklyMax or 0)))
+      end
+    elseif bestQty then
+      row.cells.crest:SetText(colored(COLOR_NEUTRAL, tostring(bestQty.quantity)))
     else
-      row.cells.crest:SetText(colored(COLOR_NEUTRAL, (track.weekly or 0) .. "/" .. (track.weeklyMax or 0)))
+      row.cells.crest:SetText(colored(COLOR_MISSING, L.NONE))
     end
-  elseif bestQty then
-    row.cells.crest:SetText(colored(COLOR_NEUTRAL, tostring(bestQty.quantity)))
-  else
-    row.cells.crest:SetText(colored(COLOR_MISSING, L.NONE))
   end
 
   -- OURO (coluna opcional, escondida por padrão — /kalts gold). Número neutro.
@@ -867,8 +930,15 @@ end
 local function UpdateHeaders()
   if not (frame and frame.headers) then return end
   local sort = KA.GetSort and KA.GetSort() or nil
+  -- no modo PvP os cabeçalhos "mplus"/"crest" viram Rating/Conquista (a coluna passa
+  -- a mostrar dados de PvP na linha recolhida). A seta de ordenação segue h.sortKey.
+  local mode = (KA.GetMode and KA.GetMode()) or "pve"
   for key, h in pairs(frame.headers) do
     local label = h.baseLabel or key
+    if mode == "pvp" then
+      if key == "mplus" then label = L.COL_RATING
+      elseif key == "crest" then label = L.COL_CONQUEST end
+    end
     if sort and sort.key == (h.sortKey or key) then
       label = label .. (sort.dir == "asc" and " |TInterface\\Buttons\\Arrow-Up-Up:14:14|t" or " |TInterface\\Buttons\\Arrow-Down-Up:14:14|t")
     end

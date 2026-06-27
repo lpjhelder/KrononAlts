@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.7.1
+
+No modo PvP, a tabela principal agora mostra Rating e Conquista. / In PvP mode, the main table now shows Rating and Conquest. / En modo PvP, la tabla principal ahora muestra Rating y Conquista.
+
+**Português**
+
+- **Modo PvP na linha recolhida** — ao escolher **PvP** na config, a tabela principal troca duas colunas sem precisar expandir: **M+ vira Rating** (o maior rating de PvP do personagem, colorido por faixa) e **Crest vira Conquista** (ganho/cap da semana, com **✓** no cap). Personagem sem dados de PvP mostra **—**.
+- **Cabeçalhos e ordenação acompanham** — os títulos dessas colunas viram **Rating** e **Conquista** no modo PvP, e clicar para ordenar passa a ordenar por rating de PvP e por Conquista.
+- **Inalterado** — nos modos **PvE** e **Ambos** a tabela continua exatamente como antes; pips do cofre, ilvl, nome e ouro não mudam em nenhum modo. Trocar de modo atualiza a tabela na hora.
+
+**English**
+
+- **PvP mode in the collapsed row** — picking **PvP** in settings swaps two columns in the main table without expanding: **M+ becomes Rating** (the character's highest PvP rating, colored by tier) and **Crest becomes Conquest** (weekly earned/cap, with **✓** at cap). A character with no PvP data shows **—**.
+- **Headers and sorting follow** — those column titles become **Rating** and **Conquest** in PvP mode, and clicking to sort now sorts by PvP rating and by Conquest.
+- **Unchanged** — in **PvE** and **Both** modes the table stays exactly as before; vault pips, ilvl, name and gold never change in any mode. Switching mode updates the table instantly.
+
+**Español**
+
+- **Modo PvP en la fila contraída** — al elegir **PvP** en la configuración, la tabla principal cambia dos columnas sin expandir: **M+ pasa a Rating** (la puntuación PvP más alta del personaje, coloreada por nivel) y **Crest pasa a Conquista** (ganado/tope de la semana, con **✓** al tope). Un personaje sin datos de PvP muestra **—**.
+- **Encabezados y orden acompañan** — esos títulos de columna pasan a **Rating** y **Conquista** en modo PvP, y al ordenar ahora se ordena por puntuación PvP y por Conquista.
+- **Sin cambios** — en los modos **PvE** y **Ambos** la tabla sigue igual que antes; los pips de la cámara, ilvl, nombre y oro no cambian en ningún modo. Cambiar de modo actualiza la tabla al instante.
+
 ## 0.7.0
 
 Janela de configurações própria, modo PvP/PvE/Ambos e rastreio de PvP. / Dedicated settings window, PvP/PvE/Both mode and PvP tracking. / Ventana de configuración propia, modo PvP/PvE/Ambos y seguimiento de PvP.

@@ -35,6 +35,8 @@ local EN = {
   COL_CHAR         = "Character",
   COL_VAULT        = "Vault",
   COL_MPLUS        = "M+",
+  COL_RATING       = "Rating",
+  COL_CONQUEST     = "Conquest",
   COL_RAID         = "Raid",
   RESET_WEEKLY     = "Weekly reset:",
   ABBR_D           = "d",
@@ -160,6 +162,8 @@ local EN = {
 local PT = {
   COL_CHAR         = "Personagem",
   COL_VAULT        = "Cofre",
+  COL_RATING       = "Rating",
+  COL_CONQUEST     = "Conquista",
   COL_RAID         = "Raide",
   RESET_WEEKLY     = "Reset semanal:",
   TRACK_MPLUS      = "Mítica+",
@@ -269,6 +273,8 @@ local PT = {
 local ES = {
   COL_CHAR         = "Personaje",
   COL_VAULT        = "Cámara",
+  COL_RATING       = "Rating",
+  COL_CONQUEST     = "Conquista",
   COL_RAID         = "Banda",
   RESET_WEEKLY     = "Reinicio semanal:",
   TRACK_MPLUS      = "Mítica+",
@@ -1211,6 +1217,28 @@ end
 -- ---------------------------------------------------------------------------
 -- API interna p/ a UI
 -- ---------------------------------------------------------------------------
+-- Métricas de PvP p/ ordenação no modo PvP (linha recolhida mostra Rating/Conquista
+-- em vez de M+/Crest, então a coluna "rating" ordena por maior rating PvP e a
+-- coluna "crest" por Conquista ganha). Defensivo: 0 quando sem dado de PvP.
+local function pvpBestRatingMetric(d)
+  local pvp = d and d.pvp
+  local best = 0
+  if type(pvp) == "table" and type(pvp.ratings) == "table" then
+    for _, r in ipairs(pvp.ratings) do
+      if type(r) == "table" and (r.rating or 0) > best then best = r.rating end
+    end
+  end
+  return best
+end
+
+local function pvpConquestMetric(d)
+  local pvp = d and d.pvp
+  if type(pvp) == "table" and type(pvp.conquest) == "table" then
+    return pvp.conquest.earned or 0
+  end
+  return 0
+end
+
 local SortMetrics = {
   vault  = function(d) return vaultFilledSum(d) end,
   mplus  = function(d) return (d.mplus and d.mplus.runs) or 0 end,
@@ -1219,6 +1247,12 @@ local SortMetrics = {
   raid   = function(d) return raidMetric(d) end,
   ilvl   = function(d) return d.ilvl or 0 end,
   gold   = function(d) return d.gold or 0 end,
+}
+
+-- Métricas alternativas usadas quando o modo é PvP (mesmas chaves de coluna).
+local SortMetricsPvP = {
+  rating = pvpBestRatingMetric,
+  crest  = pvpConquestMetric,
 }
 
 -- Ordenação padrão (sem critério escolhido): char logado primeiro, depois nível/ilvl/nome
@@ -1259,7 +1293,9 @@ function KA.GetChars()
         return na > nb
       end)
     else
-      local metric = SortMetrics[sort.key]
+      -- no modo PvP, as colunas "rating"/"crest" passam a ordenar por dados de PvP
+      local mode = (KA.GetMode and KA.GetMode()) or "pve"
+      local metric = (mode == "pvp" and SortMetricsPvP[sort.key]) or SortMetrics[sort.key]
       if metric then
         table.sort(list, function(a, b)
           local va, vb = metric(a.data), metric(b.data)

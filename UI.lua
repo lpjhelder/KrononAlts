@@ -18,6 +18,18 @@ local COLOR_HEADER  = { 0.70, 0.70, 0.74 }
 local COLOR_NEUTRAL = { 0.80, 0.80, 0.84 }      -- cinza-claro neutro (números sem destaque)
 local COLOR_ACTION  = { 1.00, 0.65, 0.25 }      -- laranja "a fazer" (acionável, NÃO é dourado de recompensa)
 
+-- Paleta da janela de configurações (coerente com a janela do Alts: bg #1D242A,
+-- accent azul, dourado). Verde p/ toggle ligado, cinza p/ desligado.
+local CFG_BG      = { 0.1137, 0.1412, 0.1647 }  -- #1D242A (mesma da janela do Alts)
+local CFG_SIDE    = { 0.082, 0.098, 0.114 }     -- sidebar um tom mais escura
+local CFG_TITLEBG = { 0.055, 0.067, 0.078 }     -- titlebar mais escura
+local CFG_GOLD    = ACCENT                       -- dourado (headers / categoria ativa)
+local CFG_ACCENT  = ACCENT_BLUE                  -- azul (barra de acento / seleção)
+local CFG_ON      = COLOR_DONE                    -- verde (toggle ligado)
+local CFG_OFF     = { 0.40, 0.42, 0.46 }         -- cinza (toggle desligado)
+local CFG_TEXT    = { 0.85, 0.86, 0.88 }         -- texto neutro
+local CFG_WHITE8  = "Interface\\Buttons\\WHITE8X8"
+
 -- Ícone de "no cap / concluído" (textura nativa, evita glyph unicode que pode não renderizar)
 local CHECK_ICON = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
 
@@ -509,164 +521,212 @@ end
 -- ---------------------------------------------------------------------------
 -- Texto do painel de detalhe (lado direito, rich text)
 -- ---------------------------------------------------------------------------
-local function BuildDetailText(d)
+-- Filtra as seções por modo (DB.settings.mode):
+--   pve  → seções PvE (Cofre, Delves, M+ por masmorra, raide, moedas) + Conquista semanal
+--   pvp  → só a seção PvP (rating por modalidade, Conquista, semanal); esconde M+/raide/delves
+--   both → tudo + PvP (a Conquista vai só na seção PvP, sem duplicar)
+local function BuildDetailText(d, mode)
+  mode = mode or "pve"
+  local showPvE = (mode ~= "pvp")
+  local showPvP = (mode == "pvp" or mode == "both")
   local lines = {}
   local function add(s) lines[#lines + 1] = s end
   local function head(s) add(colored(ACCENT, s)) end
   local v = d.vault
 
-  -- GRANDE COFRE — ilvl dos slots cheios + marcador neutro nos vazios. SEM repetir
-  -- "falta +N" (o painel "O que falta" no topo já é o destaque acionável → dedup).
-  head(L.DETAIL_VAULT)
-  local function trackLine(label, t)
-    local parts = {}
-    if type(t) == "table" and type(t.slots) == "table" then
-      for _, s in ipairs(t.slots) do
-        if s.unlocked then
-          parts[#parts + 1] = colored(QC_EPIC, s.ilvl and ("ilvl " .. s.ilvl) or "+")
-        else
-          parts[#parts + 1] = colored(COLOR_MISSING, "\194\183") -- · slot ainda vazio
+  if showPvE then
+    -- GRANDE COFRE — ilvl dos slots cheios + marcador neutro nos vazios. SEM repetir
+    -- "falta +N" (o painel "O que falta" no topo já é o destaque acionável → dedup).
+    head(L.DETAIL_VAULT)
+    local function trackLine(label, t)
+      local parts = {}
+      if type(t) == "table" and type(t.slots) == "table" then
+        for _, s in ipairs(t.slots) do
+          if s.unlocked then
+            parts[#parts + 1] = colored(QC_EPIC, s.ilvl and ("ilvl " .. s.ilvl) or "+")
+          else
+            parts[#parts + 1] = colored(COLOR_MISSING, "\194\183") -- · slot ainda vazio
+          end
         end
       end
+      if #parts == 0 then parts[1] = colored(COLOR_MISSING, L.NONE) end
+      local filled = (t and t.filled) or 0
+      local total = (t and t.total) or 3
+      add(string.format("  |cffcfcfcf%s|r  |cff888888%d/%d|r   %s",
+        label, filled, total, table.concat(parts, "  ")))
     end
-    if #parts == 0 then parts[1] = colored(COLOR_MISSING, L.NONE) end
-    local filled = (t and t.filled) or 0
-    local total = (t and t.total) or 3
-    add(string.format("  |cffcfcfcf%s|r  |cff888888%d/%d|r   %s",
-      label, filled, total, table.concat(parts, "  ")))
-  end
-  trackLine(L.TRACK_MPLUS, v and v.mplus)
-  trackLine(L.TRACK_RAID,  v and v.raid)
-  trackLine(L.TRACK_WORLD, v and v.world)
-  if v and v.hasRewards then add("  " .. colored(ACCENT, L.VAULT_HAS_REWARDS)) end
-  add(" ")
+    trackLine(L.TRACK_MPLUS, v and v.mplus)
+    trackLine(L.TRACK_RAID,  v and v.raid)
+    trackLine(L.TRACK_WORLD, v and v.world)
+    if v and v.hasRewards then add("  " .. colored(ACCENT, L.VAULT_HAS_REWARDS)) end
+    add(" ")
 
-  -- DELVES (promovido pro topo: tier + chave do cofre). A trilha Mundo já aparece
-  -- nos pips/cofre acima, então aqui não repetimos a contagem de slots.
-  head(L.DETAIL_DELVES)
-  do
-    local anyDelve = false
-    local dv = d.delves
-    if type(dv) == "table" and (dv.tier or 0) > 0 then
-      anyDelve = true
-      add(string.format("  |cffcfcfcf%s|r  %s", L.DELVE_TIER, colored(COLOR_DONE, tostring(dv.tier))))
+    -- DELVES (promovido pro topo: tier + chave do cofre). A trilha Mundo já aparece
+    -- nos pips/cofre acima, então aqui não repetimos a contagem de slots.
+    head(L.DETAIL_DELVES)
+    do
+      local anyDelve = false
+      local dv = d.delves
+      if type(dv) == "table" and (dv.tier or 0) > 0 then
+        anyDelve = true
+        add(string.format("  |cffcfcfcf%s|r  %s", L.DELVE_TIER, colored(COLOR_DONE, tostring(dv.tier))))
+      end
+      if type(d.currencies) == "table" then
+        for _, c in ipairs(d.currencies) do
+          if c.kind == "delve" then
+            anyDelve = true
+            local amount = tostring(c.quantity or 0)
+            if (c.max or 0) > 0 then amount = amount .. "/" .. c.max end
+            local wk = ""
+            if (c.weeklyMax or 0) > 0 then
+              wk = "  |cff888888(" .. (c.weekly or 0) .. "/" .. c.weeklyMax .. " " .. L.TT_CREST_WEEKLY .. ")|r"
+            end
+            add(string.format("  |cffcfcfcf%s|r  %s%s", c.name or "?", colored(COLOR_NEUTRAL, amount), wk))
+          end
+        end
+      end
+      if not anyDelve then add("  " .. colored(COLOR_MISSING, L.DELVE_NONE)) end
     end
-    if type(d.currencies) == "table" then
-      for _, c in ipairs(d.currencies) do
-        if c.kind == "delve" then
-          anyDelve = true
+    add(" ")
+
+    -- MÍTICA+ POR MASMORRA
+    head(L.DETAIL_MPLUS)
+    local maps = d.mplusMaps
+    if type(maps) == "table" and #maps > 0 then
+      for _, mapinfo in ipairs(maps) do
+        local icon = ""
+        if type(mapinfo.texture) == "number" and mapinfo.texture > 0 then
+          icon = "|T" .. mapinfo.texture .. ":14:14:0:0:64:64:5:59:5:59|t "
+        end
+        local lvl
+        if (mapinfo.level or 0) > 0 then
+          lvl = colored(COLOR_DONE, "+" .. mapinfo.level)   -- feita esta semana
+        else
+          lvl = colored(COLOR_ACTION, L.MPLUS_TODO)          -- falta correr esta semana
+        end
+        add(string.format("  %s|cffe6e6f0%s|r  %s", icon, mapinfo.name or "?", lvl))
+      end
+    else
+      add("  " .. colored(COLOR_MISSING, L.NO_DATA))
+    end
+    add(" ")
+
+    -- LOCKOUTS DE RAIDE — 1 linha derivada (o lockout mais relevante; os pips de
+    -- Raide do cofre já cobrem o resto). "+N" indica lockouts adicionais.
+    head(L.DETAIL_RAID)
+    local raids = d.raids
+    if type(raids) == "table" and #raids > 0 then
+      local top = raids[1]
+      local total = top.total or 0
+      local prog = top.progress or 0
+      local done = total > 0 and prog >= total
+      local extra = (#raids > 1) and (" |cff888888+" .. (#raids - 1) .. "|r") or ""
+      add(string.format("  |cffe6e6f0%s|r |cff888888(%s)|r  %s%s",
+        top.name or "?", top.difficultyName or DiffAbbr(top.difficultyId),
+        colored(done and COLOR_DONE or COLOR_NEUTRAL, prog .. "/" .. total), extra))
+    else
+      add("  " .. colored(COLOR_MISSING, L.TT_NO_RAID))
+    end
+    add(" ")
+
+    -- MOEDAS & CRESTS (5 tiers; moedas de delve aparecem na seção Delves acima).
+    -- ✓ marca a crest no cap semanal; números em cinza neutro.
+    head(L.DETAIL_CURR)
+    local currencies = d.currencies
+    local anyCurr = false
+    if type(currencies) == "table" then
+      for _, c in ipairs(currencies) do
+        if c.kind ~= "delve" then
+          anyCurr = true
           local amount = tostring(c.quantity or 0)
           if (c.max or 0) > 0 then amount = amount .. "/" .. c.max end
           local wk = ""
           if (c.weeklyMax or 0) > 0 then
-            wk = "  |cff888888(" .. (c.weekly or 0) .. "/" .. c.weeklyMax .. " " .. L.TT_CREST_WEEKLY .. ")|r"
+            if (c.weekly or 0) >= c.weeklyMax then
+              wk = "  " .. CHECK_ICON
+            else
+              wk = "  |cff888888(" .. (c.weekly or 0) .. "/" .. c.weeklyMax .. " " .. L.TT_CREST_WEEKLY .. ")|r"
+            end
           end
           add(string.format("  |cffcfcfcf%s|r  %s%s", c.name or "?", colored(COLOR_NEUTRAL, amount), wk))
         end
       end
     end
-    if not anyDelve then add("  " .. colored(COLOR_MISSING, L.DELVE_NONE)) end
-  end
-  add(" ")
+    if not anyCurr then add("  " .. colored(COLOR_MISSING, L.NONE)) end
 
-  -- MÍTICA+ POR MASMORRA
-  head(L.DETAIL_MPLUS)
-  local maps = d.mplusMaps
-  if type(maps) == "table" and #maps > 0 then
-    for _, mapinfo in ipairs(maps) do
-      local icon = ""
-      if type(mapinfo.texture) == "number" and mapinfo.texture > 0 then
-        icon = "|T" .. mapinfo.texture .. ":14:14:0:0:64:64:5:59:5:59|t "
+    -- SEMANAIS — Conquista (PvP) só quando há pontos ganhos (earned>0). No modo "both"
+    -- a Conquista vai na seção PvP abaixo (não duplicar) → aqui só no modo PvE puro.
+    if mode == "pve" then
+      local wk = d.weeklies
+      if type(wk) == "table" and type(wk.conquest) == "table" and (wk.conquest.earned or 0) > 0 then
+        local cap = wk.conquest.cap or 0
+        local earned = wk.conquest.earned or 0
+        local capped = cap > 0 and earned >= cap
+        add(" ")
+        head(L.DETAIL_WEEKLY)
+        add(string.format("  |cffcfcfcf%s|r  %s", L.WEEKLY_CONQUEST,
+          capped and CHECK_ICON or colored(COLOR_NEUTRAL, earned .. (cap > 0 and ("/" .. cap) or ""))))
       end
-      local lvl
-      if (mapinfo.level or 0) > 0 then
-        lvl = colored(COLOR_DONE, "+" .. mapinfo.level)   -- feita esta semana
-      else
-        lvl = colored(COLOR_ACTION, L.MPLUS_TODO)          -- falta correr esta semana
-      end
-      add(string.format("  %s|cffe6e6f0%s|r  %s", icon, mapinfo.name or "?", lvl))
     end
-  else
-    add("  " .. colored(COLOR_MISSING, L.NO_DATA))
-  end
-  add(" ")
 
-  -- LOCKOUTS DE RAIDE — 1 linha derivada (o lockout mais relevante; os pips de
-  -- Raide do cofre já cobrem o resto). "+N" indica lockouts adicionais.
-  head(L.DETAIL_RAID)
-  local raids = d.raids
-  if type(raids) == "table" and #raids > 0 then
-    local top = raids[1]
-    local total = top.total or 0
-    local prog = top.progress or 0
-    local done = total > 0 and prog >= total
-    local extra = (#raids > 1) and (" |cff888888+" .. (#raids - 1) .. "|r") or ""
-    add(string.format("  |cffe6e6f0%s|r |cff888888(%s)|r  %s%s",
-      top.name or "?", top.difficultyName or DiffAbbr(top.difficultyId),
-      colored(done and COLOR_DONE or COLOR_NEUTRAL, prog .. "/" .. total), extra))
-  else
-    add("  " .. colored(COLOR_MISSING, L.TT_NO_RAID))
+    -- PROFISSÕES — atrás de um toggle (OFF por padrão, /kalts prof ou botão no
+    -- detalhe). A dica "abra a profissão" só aparece no estado vazio.
+    if KA.GetShowProfessions and KA.GetShowProfessions() then
+      add(" ")
+      head(L.DETAIL_PROF)
+      local profs = d.professions
+      if type(profs) == "table" and #profs > 0 then
+        for _, p in ipairs(profs) do
+          local extra = {}
+          if type(p.skillLevel) == "number" and (p.maxSkillLevel or 0) > 0 then
+            extra[#extra + 1] = "|cff888888" .. p.skillLevel .. "/" .. p.maxSkillLevel .. "|r"
+          end
+          if type(p.knowledge) == "number" then
+            extra[#extra + 1] = colored(COLOR_NEUTRAL, L.PROF_KNOWLEDGE .. " " .. p.knowledge)
+          end
+          add(string.format("  |cffcfcfcf%s|r  %s", p.name or "?", table.concat(extra, "  ")))
+        end
+      else
+        add("  " .. colored(COLOR_MISSING, L.PROF_OPEN_HINT))
+      end
+    end
   end
-  add(" ")
 
-  -- MOEDAS & CRESTS (5 tiers; moedas de delve aparecem na seção Delves acima).
-  -- ✓ marca a crest no cap semanal; números em cinza neutro.
-  head(L.DETAIL_CURR)
-  local currencies = d.currencies
-  local anyCurr = false
-  if type(currencies) == "table" then
-    for _, c in ipairs(currencies) do
-      if c.kind ~= "delve" then
-        anyCurr = true
-        local amount = tostring(c.quantity or 0)
-        if (c.max or 0) > 0 then amount = amount .. "/" .. c.max end
-        local wk = ""
-        if (c.weeklyMax or 0) > 0 then
-          if (c.weekly or 0) >= c.weeklyMax then
-            wk = "  " .. CHECK_ICON
-          else
-            wk = "  |cff888888(" .. (c.weekly or 0) .. "/" .. c.weeklyMax .. " " .. L.TT_CREST_WEEKLY .. ")|r"
+  -- PvP — rating por modalidade + Conquista (ganho/cap semanal) + honra. Só nos
+  -- modos PvP/Ambos. Blank de separação só quando já há seções acima (modo Ambos).
+  if showPvP then
+    if #lines > 0 then add(" ") end
+    head(L.DETAIL_PVP)
+    local pvp = d.pvp
+    local anyPvP = false
+    if type(pvp) == "table" then
+      if type(pvp.ratings) == "table" then
+        for _, r in ipairs(pvp.ratings) do
+          if (r.rating or 0) > 0 then
+            anyPvP = true
+            local extra = ""
+            if (r.seasonBest or 0) > (r.rating or 0) then
+              extra = "  |cff888888(" .. r.seasonBest .. ")|r"
+            end
+            add(string.format("  |cffcfcfcf%s|r  %s%s",
+              L[r.key] or r.key or "?", colored(RatingColor(r.rating), tostring(r.rating)), extra))
           end
         end
-        add(string.format("  |cffcfcfcf%s|r  %s%s", c.name or "?", colored(COLOR_NEUTRAL, amount), wk))
+      end
+      if type(pvp.conquest) == "table" and ((pvp.conquest.cap or 0) > 0 or (pvp.conquest.earned or 0) > 0) then
+        anyPvP = true
+        local cap = pvp.conquest.cap or 0
+        local earned = pvp.conquest.earned or 0
+        local capped = cap > 0 and earned >= cap
+        add(string.format("  |cffcfcfcf%s|r  %s", L.WEEKLY_CONQUEST,
+          capped and CHECK_ICON or colored(COLOR_NEUTRAL, earned .. (cap > 0 and ("/" .. cap) or ""))))
+      end
+      if type(pvp.honorLevel) == "number" and pvp.honorLevel > 0 then
+        anyPvP = true
+        add(string.format("  |cffcfcfcf%s|r  %s", L.PVP_HONOR, colored(COLOR_NEUTRAL, tostring(pvp.honorLevel))))
       end
     end
-  end
-  if not anyCurr then add("  " .. colored(COLOR_MISSING, L.NONE)) end
-
-  -- SEMANAIS — só Conquista (PvP) e somente quando há pontos ganhos (earned>0).
-  -- Catalisador é Warband-wide → mostrado 1x no tooltip do minimapa, não por char.
-  local wk = d.weeklies
-  if type(wk) == "table" and type(wk.conquest) == "table" and (wk.conquest.earned or 0) > 0 then
-    local cap = wk.conquest.cap or 0
-    local earned = wk.conquest.earned or 0
-    local capped = cap > 0 and earned >= cap
-    add(" ")
-    head(L.DETAIL_WEEKLY)
-    add(string.format("  |cffcfcfcf%s|r  %s", L.WEEKLY_CONQUEST,
-      capped and CHECK_ICON or colored(COLOR_NEUTRAL, earned .. (cap > 0 and ("/" .. cap) or ""))))
-  end
-
-  -- PROFISSÕES — atrás de um toggle (OFF por padrão, /kalts prof ou botão no
-  -- detalhe). A dica "abra a profissão" só aparece no estado vazio.
-  if KA.GetShowProfessions and KA.GetShowProfessions() then
-    add(" ")
-    head(L.DETAIL_PROF)
-    local profs = d.professions
-    if type(profs) == "table" and #profs > 0 then
-      for _, p in ipairs(profs) do
-        local extra = {}
-        if type(p.skillLevel) == "number" and (p.maxSkillLevel or 0) > 0 then
-          extra[#extra + 1] = "|cff888888" .. p.skillLevel .. "/" .. p.maxSkillLevel .. "|r"
-        end
-        if type(p.knowledge) == "number" then
-          extra[#extra + 1] = colored(COLOR_NEUTRAL, L.PROF_KNOWLEDGE .. " " .. p.knowledge)
-        end
-        add(string.format("  |cffcfcfcf%s|r  %s", p.name or "?", table.concat(extra, "  ")))
-      end
-    else
-      add("  " .. colored(COLOR_MISSING, L.PROF_OPEN_HINT))
-    end
+    if not anyPvP then add("  " .. colored(COLOR_MISSING, L.PVP_NONE)) end
   end
 
   return table.concat(lines, "\n")
@@ -769,24 +829,33 @@ local function PopulateDetail(entry)
     df.pnext:SetText(table.concat(out, "\n"))
   end
 
-  -- toggle de Profissões (detalhe enxuto: OFF por padrão)
+  -- modo de detalhe (filtra as seções): "pve" | "pvp" | "both"
+  local mode = (KA.GetMode and KA.GetMode()) or "pve"
+
+  -- toggle de Profissões (detalhe enxuto: OFF por padrão). Some no modo PvP (a seção
+  -- de Profissões não é exibida nesse modo).
   if df.profBtn then
-    local on = KA.GetShowProfessions and KA.GetShowProfessions()
-    df.profBtn.text:SetText((on and "- " or "+ ") .. L.DETAIL_PROF)
-    df.profBtn.text:SetTextColor(0.6, 0.6, 0.6)
+    if mode == "pvp" then
+      df.profBtn:Hide()
+    else
+      df.profBtn:Show()
+      local on = KA.GetShowProfessions and KA.GetShowProfessions()
+      df.profBtn.text:SetText((on and "- " or "+ ") .. L.DETAIL_PROF)
+      df.profBtn.text:SetTextColor(0.6, 0.6, 0.6)
+    end
   end
 
   -- largura do corpo derivada do scrollChild (independe da âncora do frame de detalhe)
   local cw = (scrollChild and scrollChild:GetWidth()) or (FRAME_W - 34)
   local bodyW = math.max((cw or 560) - 188 - 12, 200)
   df.body:SetWidth(bodyW)
-  df.body:SetText(BuildDetailText(d))
+  df.body:SetText(BuildDetailText(d, mode))
 
   local bodyH = df.body:GetStringHeight() or 0
   local leftH = 48 + 6 + (df.pname:GetStringHeight() or 12)
               + 4 + (df.pmeta:GetStringHeight() or 10)
               + 8 + (df.pnext:GetStringHeight() or 10)
-              + 10 + 16 -- toggle de Profissões
+              + ((mode == "pvp") and 0 or (10 + 16)) -- toggle de Profissões (oculto no modo PvP)
   local h = math.max(bodyH, leftH) + 28
   df:SetHeight(h)
   return h
@@ -864,6 +933,10 @@ Refresh = function()
 
   -- mantém o rótulo do botão de agrupar em sincronia
   if frame.groupBtn and frame.groupBtn.refresh then frame.groupBtn.refresh() end
+  -- mantém o checkbox "ocultar concluídos" em sincronia (pode mudar pela config)
+  if frame.hideCb and KA.GetHideCompleted then
+    frame.hideCb:SetChecked(KA.GetHideCompleted() and true or false)
+  end
 
   -- largura do scrollChild
   local sw = (frame.scroll and frame.scroll:GetWidth()) or (FRAME_W - 34)
@@ -1044,9 +1117,32 @@ local function BuildFrame()
   close:SetFrameLevel(tb:GetFrameLevel() + 5)
   close:SetScript("OnClick", function() frame:Hide() end)
 
-  -- countdown na titlebar (entre título e X)
+  -- BOTÃO DE ENGRENAGEM (abre a janela de config) — à esquerda do X
+  local gear = CreateFrame("Button", nil, tb)
+  gear:SetSize(18, 18)
+  gear:SetPoint("RIGHT", close, "LEFT", -2, 0)
+  gear:SetFrameLevel(tb:GetFrameLevel() + 5)
+  local gearTex = gear:CreateTexture(nil, "ARTWORK")
+  gearTex:SetAllPoints()
+  gearTex:SetTexture("Interface\\GossipFrame\\BinderGossipIcon")
+  gearTex:SetVertexColor(0.85, 0.85, 0.88, 1)
+  gear.tex = gearTex
+  gear:SetScript("OnEnter", function(self)
+    self.tex:SetVertexColor(1, 1, 1, 1)
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+    GameTooltip:SetText(L.TIP_CONFIG, 1, 1, 1)
+    GameTooltip:Show()
+  end)
+  gear:SetScript("OnLeave", function(self)
+    self.tex:SetVertexColor(0.85, 0.85, 0.88, 1)
+    GameTooltip:Hide()
+  end)
+  gear:SetScript("OnClick", function() if KA.OpenConfig then KA.OpenConfig() end end)
+  frame.gear = gear
+
+  -- countdown na titlebar (entre título e engrenagem)
   local cd = tb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  cd:SetPoint("RIGHT", close, "LEFT", -6, 0)
+  cd:SetPoint("RIGHT", gear, "LEFT", -6, 0)
   cd:SetJustifyH("RIGHT")
   frame.countdown = cd
 
@@ -1209,6 +1305,502 @@ end
 
 KA.bus:Register(function()
   if frame and frame:IsShown() then Refresh() end
+end)
+
+-- ===========================================================================
+-- JANELA DE CONFIGURAÇÕES PRÓPRIA (autocontida, sem libs) — sidebar de categorias
+-- + painel rolável com fábrica uniforme de controles (toggle switch / dropdown).
+-- Estilo coerente com o KrononBags v0.54.0, mas sem dependências. Abre pela
+-- engrenagem da janela do Alts e por /kalts config. Lembra a última categoria.
+-- ===========================================================================
+local cfgFrame
+
+local function cfgFlat(f, col, a, ba)
+  if not f.SetBackdrop then return end
+  f:SetBackdrop({ bgFile = CFG_WHITE8, edgeFile = CFG_WHITE8, edgeSize = 1, tile = false })
+  f:SetBackdropColor(col[1], col[2], col[3], a or 1)
+  f:SetBackdropBorderColor(0, 0, 0, ba or 0.85)
+end
+
+-- atalho p/ a SavedVariable de settings (defensivo)
+local function cfgSettings()
+  if type(KrononAltsDB) == "table" and type(KrononAltsDB.settings) == "table" then
+    return KrononAltsDB.settings
+  end
+  return nil
+end
+
+-- restaura os ajustes migrados pra config aos padrões (usa setters → disparam o bus)
+local function cfgResetDefaults()
+  if KA.SetMode then KA.SetMode("pve") end
+  if type(KrononAltsDB) == "table" then
+    KrononAltsDB.showGold = false
+    KrononAltsDB.showProfessions = false
+    KrononAltsDB.loginReminder = true
+    KrononAltsDB.hideCompleted = false
+  end
+  if KA.SetGroupBy then KA.SetGroupBy("none") end
+  KA.bus:Fire()
+  print("|cff33ff33KrononAlts|r: " .. L.CFG_RESET_DONE)
+end
+
+StaticPopupDialogs["KRONONALTS_RESETCFG"] = {
+  text = L.CFG_RESET_CONFIRM,
+  button1 = YES,
+  button2 = NO,
+  OnAccept = function() cfgResetDefaults() end,
+  timeout = 0, whileDead = true, hideOnEscape = true, showAlert = true, preferredIndex = 3,
+}
+
+local function BuildConfig()
+  if cfgFrame then return end
+
+  local CFG = CreateFrame("Frame", "KrononAltsConfig", UIParent, "BackdropTemplate")
+  CFG:SetSize(560, 440)
+  CFG:SetFrameStrata("DIALOG")
+  CFG:SetToplevel(true)
+  CFG:SetClampedToScreen(true)
+  CFG:SetMovable(true); CFG:EnableMouse(true)
+  cfgFlat(CFG, CFG_BG, 0.98, 0.85)
+  cfgFrame = CFG
+
+  CFG.panels = {}      -- [key] = scrollframe
+  CFG.childs = {}      -- [key] = scroll child
+  CFG.tabButtons = {}  -- [key] = botão da sidebar
+  CFG.controls = {}    -- registro de controles (refresh / dependência)
+
+  -- posição salva
+  local st = cfgSettings()
+  local pos = st and st.cfgPos
+  CFG:ClearAllPoints()
+  if type(pos) == "table" and pos.point then
+    CFG:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, pos.x or 0, pos.y or 0)
+  else
+    CFG:SetPoint("CENTER")
+  end
+
+  tinsert(UISpecialFrames, "KrononAltsConfig") -- ESC fecha
+
+  -- ===== Barra de título =====
+  local titlebar = CreateFrame("Frame", nil, CFG, "BackdropTemplate")
+  titlebar:SetPoint("TOPLEFT", 1, -1); titlebar:SetPoint("TOPRIGHT", -1, -1)
+  titlebar:SetHeight(34)
+  cfgFlat(titlebar, CFG_TITLEBG, 1, 0.50)
+  titlebar:EnableMouse(true)
+  titlebar:RegisterForDrag("LeftButton")
+  titlebar:SetScript("OnDragStart", function() CFG:StartMoving() end)
+  titlebar:SetScript("OnDragStop", function()
+    CFG:StopMovingOrSizing()
+    local p, _, rp, x, y = CFG:GetPoint()
+    local s = cfgSettings()
+    if s and p then s.cfgPos = { point = p, relPoint = rp, x = x, y = y } end
+  end)
+
+  local clogo = titlebar:CreateTexture(nil, "ARTWORK")
+  clogo:SetSize(18, 18); clogo:SetPoint("LEFT", 10, 0)
+  clogo:SetTexture("Interface\\Icons\\INV_Misc_Note_01")
+  clogo:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  local title = titlebar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  title:SetPoint("LEFT", clogo, "RIGHT", 8, 0)
+  title:SetText(L.CFG_TITLE); title:SetTextColor(CFG_GOLD[1], CFG_GOLD[2], CFG_GOLD[3])
+
+  local ver = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("KrononAlts", "Version")) or ""
+  if ver ~= "" then
+    local verFS = titlebar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    verFS:SetPoint("LEFT", title, "RIGHT", 8, -1); verFS:SetText("v" .. ver)
+  end
+
+  local close = CreateFrame("Button", nil, CFG, "UIPanelCloseButton")
+  close:SetPoint("TOPRIGHT", 2, 2)
+
+  -- ===== Seletor de MODO no topo (PvE / PvP / Ambos) — filtra o detalhe =====
+  local modeBar = CreateFrame("Frame", nil, CFG)
+  modeBar:SetPoint("TOPLEFT", titlebar, "BOTTOMLEFT", 0, -6)
+  modeBar:SetPoint("TOPRIGHT", titlebar, "BOTTOMRIGHT", 0, -6)
+  modeBar:SetHeight(28)
+  local mlbl = modeBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  mlbl:SetPoint("LEFT", 12, 0); mlbl:SetText(L.CFG_MODE_LABEL .. ":")
+  mlbl:SetTextColor(CFG_TEXT[1], CFG_TEXT[2], CFG_TEXT[3])
+
+  local MODES = {
+    { k = "pve",  t = L.CFG_MODE_PVE  },
+    { k = "pvp",  t = L.CFG_MODE_PVP  },
+    { k = "both", t = L.CFG_MODE_BOTH },
+  }
+  CFG.modeButtons = {}
+  local prevAnchor = mlbl
+  for i, m in ipairs(MODES) do
+    local b = CreateFrame("Button", nil, modeBar)
+    b:SetSize(72, 22)
+    if i == 1 then
+      b:SetPoint("LEFT", prevAnchor, "RIGHT", 10, 0)
+    else
+      b:SetPoint("LEFT", prevAnchor, "RIGHT", 4, 0)
+    end
+    prevAnchor = b
+    local selbg = b:CreateTexture(nil, "BACKGROUND")
+    selbg:SetAllPoints(); selbg:SetTexture(CFG_WHITE8)
+    selbg:SetVertexColor(CFG_ACCENT[1], CFG_ACCENT[2], CFG_ACCENT[3], 0.16); selbg:Hide()
+    b.selbg = selbg
+    local bar = b:CreateTexture(nil, "ARTWORK")
+    bar:SetHeight(2); bar:SetPoint("BOTTOMLEFT", 0, 0); bar:SetPoint("BOTTOMRIGHT", 0, 0)
+    bar:SetTexture(CFG_WHITE8); bar:SetVertexColor(CFG_ACCENT[1], CFG_ACCENT[2], CFG_ACCENT[3], 1); bar:Hide()
+    b.bar = bar
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints(); hl:SetTexture(CFG_WHITE8); hl:SetVertexColor(1, 1, 1, 0.05)
+    local fs = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fs:SetAllPoints(); fs:SetJustifyH("CENTER"); fs:SetText(m.t)
+    b.fs = fs
+    b:SetScript("OnEnter", function(self)
+      GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+      GameTooltip:SetText(L.CFG_MODE_LABEL, 1, 1, 1)
+      GameTooltip:AddLine(L.CFG_MODE_HINT, 0.8, 0.8, 0.8, true)
+      GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    b:SetScript("OnClick", function()
+      if KA.SetMode then KA.SetMode(m.k) end
+      if CFG.paintMode then CFG.paintMode() end
+    end)
+    CFG.modeButtons[m.k] = b
+  end
+  function CFG.paintMode()
+    local cur = (KA.GetMode and KA.GetMode()) or "pve"
+    for k, b in pairs(CFG.modeButtons) do
+      local active = (k == cur)
+      b.selbg:SetShown(active); b.bar:SetShown(active)
+      if active then b.fs:SetTextColor(CFG_GOLD[1], CFG_GOLD[2], CFG_GOLD[3])
+      else b.fs:SetTextColor(CFG_TEXT[1], CFG_TEXT[2], CFG_TEXT[3]) end
+    end
+  end
+
+  -- ===== Sidebar (esquerda) =====
+  local sidebar = CreateFrame("Frame", nil, CFG, "BackdropTemplate")
+  sidebar:SetPoint("TOPLEFT", modeBar, "BOTTOMLEFT", 1, -6)
+  sidebar:SetPoint("BOTTOMLEFT", 1, 1)
+  sidebar:SetWidth(150)
+  cfgFlat(sidebar, CFG_SIDE, 1, 0.40)
+
+  local vdiv = CFG:CreateTexture(nil, "ARTWORK")
+  vdiv:SetColorTexture(1, 1, 1, 0.06); vdiv:SetWidth(1)
+  vdiv:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", 0, 0)
+  vdiv:SetPoint("BOTTOMLEFT", sidebar, "BOTTOMRIGHT", 0, 0)
+
+  -- área de conteúdo (à direita da sidebar)
+  local content = CreateFrame("Frame", nil, CFG)
+  content:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", 7, -2)
+  content:SetPoint("BOTTOMRIGHT", -8, 10)
+
+  -- ========= FÁBRICA DE CONTROLES =========
+  -- header de seção: dourado + filete 1px
+  local function Section(ctx, text)
+    local h = ctx.parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    h:SetPoint("TOPLEFT", 12, ctx.y)
+    h:SetText(text); h:SetTextColor(CFG_GOLD[1], CFG_GOLD[2], CFG_GOLD[3])
+    local d = ctx.parent:CreateTexture(nil, "ARTWORK")
+    d:SetHeight(1)
+    d:SetPoint("LEFT", h, "RIGHT", 10, 0)
+    d:SetPoint("RIGHT", ctx.parent, "RIGHT", -6, 0)
+    d:SetPoint("TOP", h, "CENTER", 0, 0)
+    d:SetColorTexture(CFG_GOLD[1], CFG_GOLD[2], CFG_GOLD[3], 0.30)
+    ctx.y = ctx.y - 24
+  end
+
+  -- registra controle (refresh + dependência)
+  local function register(ctx, entry)
+    entry.tab = ctx.tab
+    table.insert(CFG.controls, entry)
+  end
+
+  -- toggle estilo switch (verde ligado / cinza desligado) + label colorida + descrição
+  local function Check(ctx, label, getf, setf, desc, depGet)
+    local row = CreateFrame("Button", nil, ctx.parent)
+    row:SetPoint("TOPLEFT", 8, ctx.y)
+    row:SetPoint("RIGHT", ctx.parent, "RIGHT", -6, 0)
+    row:SetHeight(44)
+    local hl = row:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints(); hl:SetTexture(CFG_WHITE8); hl:SetVertexColor(1, 1, 1, 0.05)
+    -- switch
+    local sw = CreateFrame("Frame", nil, row)
+    sw:SetSize(38, 18); sw:SetPoint("TOPLEFT", 8, -2)
+    local track = sw:CreateTexture(nil, "BACKGROUND")
+    track:SetAllPoints(); track:SetTexture(CFG_WHITE8)
+    local knob = sw:CreateTexture(nil, "ARTWORK")
+    knob:SetSize(14, 14); knob:SetTexture(CFG_WHITE8); knob:SetVertexColor(0.96, 0.96, 0.97, 1)
+    local lbl = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    lbl:SetPoint("TOPLEFT", sw, "TOPRIGHT", 12, -1); lbl:SetJustifyH("LEFT"); lbl:SetText(label)
+    local dsc = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    dsc:SetPoint("TOPLEFT", lbl, "BOTTOMLEFT", 0, -3)
+    dsc:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+    dsc:SetJustifyH("LEFT"); dsc:SetWordWrap(true)
+    if desc then dsc:SetText(desc) end
+    local function paint(on)
+      if on then
+        track:SetVertexColor(CFG_ON[1], CFG_ON[2], CFG_ON[3], 0.85)
+        knob:ClearAllPoints(); knob:SetPoint("RIGHT", -2, 0)
+        lbl:SetTextColor(CFG_ON[1], CFG_ON[2], CFG_ON[3])
+      else
+        track:SetVertexColor(CFG_OFF[1], CFG_OFF[2], CFG_OFF[3], 0.55)
+        knob:ClearAllPoints(); knob:SetPoint("LEFT", 2, 0)
+        lbl:SetTextColor(CFG_TEXT[1], CFG_TEXT[2], CFG_TEXT[3])
+      end
+    end
+    paint(getf() and true or false)
+    row:SetScript("OnClick", function()
+      local nv = not (getf() and true or false)
+      setf(nv); paint(nv)
+      if CFG.updateDependents then CFG.updateDependents() end
+    end)
+    local entry = { label = label, frame = row, depGet = depGet }
+    entry.refresh = function() paint(getf() and true or false) end
+    entry.setEnabled = function(en)
+      row:SetAlpha(en and 1 or 0.4)
+      row:EnableMouse(en and true or false)
+    end
+    register(ctx, entry)
+    ctx.y = ctx.y - 48
+    return entry
+  end
+
+  -- botão de menu (dropdown) usando MenuUtil — usado pelo critério de agrupamento
+  local function MenuButton(ctx, label, getTextf, buildf, depGet)
+    local row = CreateFrame("Frame", nil, ctx.parent)
+    row:SetPoint("TOPLEFT", 8, ctx.y)
+    row:SetPoint("RIGHT", ctx.parent, "RIGHT", -6, 0)
+    row:SetHeight(42)
+    local lbl = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    lbl:SetPoint("TOPLEFT", 8, -2); lbl:SetText(label)
+    lbl:SetTextColor(CFG_TEXT[1], CFG_TEXT[2], CFG_TEXT[3])
+    local btn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+    btn:SetSize(180, 22); btn:SetPoint("TOPLEFT", 10, -19)
+    local function upd() btn:SetText(getTextf()) end
+    upd()
+    btn:SetScript("OnClick", function(self)
+      if not (MenuUtil and MenuUtil.CreateContextMenu) then return end
+      MenuUtil.CreateContextMenu(self, function(owner, root) buildf(owner, root, upd) end)
+    end)
+    local entry = { label = label, frame = row, depGet = depGet }
+    entry.refresh = upd
+    entry.setEnabled = function(en)
+      row:SetAlpha(en and 1 or 0.4)
+      if en then btn:Enable() else btn:Disable() end
+    end
+    register(ctx, entry)
+    ctx.y = ctx.y - 46
+    return entry
+  end
+
+  -- ===== mostra/oculta painel + destaca o botão da sidebar =====
+  local function ShowConfigTab(key)
+    for k, p in pairs(CFG.panels) do p:SetShown(k == key) end
+    for k, b in pairs(CFG.tabButtons) do
+      local active = (k == key)
+      if b.selbg then b.selbg:SetShown(active) end
+      if b.bar then b.bar:SetShown(active) end
+      if b.fs then
+        if active then b.fs:SetTextColor(CFG_GOLD[1], CFG_GOLD[2], CFG_GOLD[3])
+        else b.fs:SetTextColor(CFG_TEXT[1], CFG_TEXT[2], CFG_TEXT[3]) end
+      end
+    end
+    local sf, child = CFG.panels[key], CFG.childs[key]
+    if sf and child and sf.GetWidth then child:SetWidth(sf:GetWidth()) end
+    CFG.activeTab = key
+    local s = cfgSettings(); if s then s.cfgLastTab = key end
+  end
+  CFG.ShowTab = ShowConfigTab
+
+  -- cria um painel ROLÁVEL (scrollframe + child) e devolve o child + ctx
+  local function makeScrollPanel(key)
+    local sf = CreateFrame("ScrollFrame", nil, content, "UIPanelScrollFrameTemplate")
+    sf:SetPoint("TOPLEFT", 0, 0)
+    sf:SetPoint("BOTTOMRIGHT", -22, 0)
+    local child = CreateFrame("Frame", nil, sf)
+    child:SetSize(10, 10)
+    sf:SetScrollChild(child)
+    sf:SetScript("OnSizeChanged", function(self, w) if w and w > 0 then child:SetWidth(w) end end)
+    sf:Hide()
+    CFG.panels[key] = sf
+    CFG.childs[key] = child
+    return child, { parent = child, tab = key, y = -10 }
+  end
+  local function finishPanel(child, ctx)
+    child:SetHeight(math.max(10, -ctx.y + 14))
+  end
+
+  -- ===== ordem + ícones das categorias da sidebar =====
+  local TABS = {
+    { key = "general", label = L.CFG_CAT_GENERAL, icon = "Interface\\ICONS\\INV_Misc_Gear_01" },
+    { key = "display", label = L.CFG_CAT_DISPLAY, icon = "Interface\\ICONS\\INV_Misc_PaintBrush" },
+    { key = "about",   label = L.CFG_CAT_ABOUT,   icon = "Interface\\ICONS\\INV_Misc_QuestionMark" },
+  }
+  for i, t in ipairs(TABS) do
+    local b = CreateFrame("Button", nil, sidebar)
+    b:SetSize(138, 30)
+    b:SetPoint("TOPLEFT", 6, -8 - (i - 1) * 32)
+    b.tabKey = t.key
+    local selbg = b:CreateTexture(nil, "BACKGROUND")
+    selbg:SetAllPoints(); selbg:SetTexture(CFG_WHITE8)
+    selbg:SetVertexColor(CFG_ACCENT[1], CFG_ACCENT[2], CFG_ACCENT[3], 0.13); selbg:Hide()
+    b.selbg = selbg
+    local bar = b:CreateTexture(nil, "ARTWORK")
+    bar:SetSize(3, 30); bar:SetPoint("LEFT", 0, 0); bar:SetTexture(CFG_WHITE8)
+    bar:SetVertexColor(CFG_ACCENT[1], CFG_ACCENT[2], CFG_ACCENT[3], 1); bar:Hide()
+    b.bar = bar
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints(); hl:SetTexture(CFG_WHITE8); hl:SetVertexColor(1, 1, 1, 0.05)
+    local ic = b:CreateTexture(nil, "ARTWORK")
+    ic:SetSize(16, 16); ic:SetPoint("LEFT", 12, 0); ic:SetTexture(t.icon)
+    ic:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    local fs = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    fs:SetPoint("LEFT", ic, "RIGHT", 8, 0); fs:SetText(t.label)
+    fs:SetTextColor(CFG_TEXT[1], CFG_TEXT[2], CFG_TEXT[3])
+    b.fs = fs
+    b:SetScript("OnClick", function() ShowConfigTab(t.key) end)
+    CFG.tabButtons[t.key] = b
+  end
+
+  -- "Restaurar padrões" no rodapé da sidebar
+  local resetBtn = CreateFrame("Button", nil, sidebar)
+  resetBtn:SetSize(134, 24); resetBtn:SetPoint("BOTTOM", 0, 10)
+  local rbBG = resetBtn:CreateTexture(nil, "BACKGROUND")
+  rbBG:SetAllPoints(); rbBG:SetTexture(CFG_WHITE8); rbBG:SetVertexColor(1, 1, 1, 0.05)
+  local rbHL = resetBtn:CreateTexture(nil, "HIGHLIGHT")
+  rbHL:SetAllPoints(); rbHL:SetTexture(CFG_WHITE8); rbHL:SetVertexColor(0.85, 0.30, 0.30, 0.25)
+  local rbFS = resetBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  rbFS:SetPoint("CENTER"); rbFS:SetText(L.CFG_RESET); rbFS:SetTextColor(0.9, 0.6, 0.6)
+  resetBtn:SetScript("OnClick", function() StaticPopup_Show("KRONONALTS_RESETCFG") end)
+
+  -- ========= GERAL =========
+  do
+    local child, ctx = makeScrollPanel("general")
+    Section(ctx, L.CFG_SEC_BEHAVIOR)
+    Check(ctx, L.OPT_REMINDER,
+      function() return KrononAltsDB and KrononAltsDB.loginReminder ~= false end,
+      function(v) if KrononAltsDB then KrononAltsDB.loginReminder = v and true or false end end,
+      L.OPT_REMINDER_DESC)
+    Check(ctx, L.HIDE_COMPLETED,
+      function() return KA.GetHideCompleted and KA.GetHideCompleted() end,
+      function(v) if KA.SetHideCompleted then KA.SetHideCompleted(v) end end,
+      L.OPT_HIDE_DESC)
+
+    Section(ctx, L.CFG_SEC_ORGANIZE)
+    -- cascata pai→filho: "agrupar" liga/desliga; "agrupar por" (reino/facção) só ativo se ligado
+    Check(ctx, L.OPT_GROUP,
+      function() return (KA.GetGroupBy and KA.GetGroupBy() or "none") ~= "none" end,
+      function(v)
+        if not KA.SetGroupBy then return end
+        if v then
+          local cur = KA.GetGroupBy and KA.GetGroupBy() or "none"
+          if cur ~= "realm" and cur ~= "faction" then cur = "realm" end
+          KA.SetGroupBy(cur)
+        else
+          KA.SetGroupBy("none")
+        end
+      end,
+      L.OPT_GROUP_DESC)
+    MenuButton(ctx, L.OPT_GROUP_BY,
+      function()
+        local cur = KA.GetGroupBy and KA.GetGroupBy() or "none"
+        return (cur == "faction") and L.GROUP_FACTION or L.GROUP_REALM
+      end,
+      function(_, root, upd)
+        local function opt(val, text)
+          local cur = KA.GetGroupBy and KA.GetGroupBy() or "none"
+          root:CreateRadio(text, function() return cur == val end, function()
+            if KA.SetGroupBy then KA.SetGroupBy(val) end
+            if upd then upd() end
+            if CFG.updateDependents then CFG.updateDependents() end
+          end)
+        end
+        opt("realm", L.GROUP_REALM)
+        opt("faction", L.GROUP_FACTION)
+      end,
+      function() return (KA.GetGroupBy and KA.GetGroupBy() or "none") ~= "none" end)
+    finishPanel(child, ctx)
+  end
+
+  -- ========= EXIBIÇÃO =========
+  do
+    local child, ctx = makeScrollPanel("display")
+    Section(ctx, L.CFG_SEC_COLUMNS)
+    Check(ctx, L.OPT_GOLD,
+      function() return KA.GetShowGold and KA.GetShowGold() end,
+      function() if KA.ToggleShowGold then KA.ToggleShowGold() end end,
+      L.OPT_GOLD_DESC)
+    Check(ctx, L.OPT_PROF,
+      function() return KA.GetShowProfessions and KA.GetShowProfessions() end,
+      function() if KA.ToggleProfessions then KA.ToggleProfessions() end end,
+      L.OPT_PROF_DESC)
+    finishPanel(child, ctx)
+  end
+
+  -- ========= SOBRE =========
+  do
+    local child, ctx = makeScrollPanel("about")
+    Section(ctx, L.CFG_CAT_ABOUT)
+    local desc = child:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    desc:SetPoint("TOPLEFT", 12, ctx.y); desc:SetPoint("RIGHT", child, "RIGHT", -10, 0)
+    desc:SetJustifyH("LEFT"); desc:SetWordWrap(true); desc:SetText(L.CFG_ABOUT_DESC)
+    desc:SetTextColor(CFG_TEXT[1], CFG_TEXT[2], CFG_TEXT[3])
+    ctx.y = ctx.y - 36
+    if ver ~= "" then
+      local vfs = child:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+      vfs:SetPoint("TOPLEFT", 12, ctx.y)
+      vfs:SetText("|cffcfcfcf" .. L.CFG_ABOUT_VERSION .. ":|r  v" .. ver)
+      ctx.y = ctx.y - 24
+    end
+    Section(ctx, L.CFG_ABOUT_COMMANDS)
+    local cmds = child:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    cmds:SetPoint("TOPLEFT", 12, ctx.y); cmds:SetPoint("RIGHT", child, "RIGHT", -10, 0)
+    cmds:SetJustifyH("LEFT"); cmds:SetWordWrap(true); cmds:SetText(L.CFG_ABOUT_CMD_LIST)
+    ctx.y = ctx.y - 40
+    finishPanel(child, ctx)
+  end
+
+  -- aplica dependências (cascata pai→filho)
+  function CFG.updateDependents()
+    for _, c in ipairs(CFG.controls) do
+      if c.depGet and c.setEnabled then c.setEnabled(c.depGet() and true or false) end
+    end
+  end
+  -- re-sincroniza todos os controles + modo (ao abrir e quando o bus dispara)
+  function CFG.refreshAll()
+    for _, c in ipairs(CFG.controls) do if c.refresh then c.refresh() end end
+    if CFG.paintMode then CFG.paintMode() end
+    CFG.updateDependents()
+  end
+
+  CFG.paintMode()
+  CFG.refreshAll()
+  local startTab = (st and st.cfgLastTab) or "general"
+  if not CFG.panels[startTab] then startTab = "general" end
+  ShowConfigTab(startTab)
+  CFG:Hide()
+end
+
+-- API pública de config (globais KrononAlts.*)
+function KA.OpenConfig()
+  if not cfgFrame then BuildConfig() end
+  if cfgFrame then
+    if cfgFrame.refreshAll then cfgFrame.refreshAll() end
+    local s = cfgSettings()
+    if cfgFrame.ShowTab then cfgFrame.ShowTab((s and s.cfgLastTab) or "general") end
+    cfgFrame:Show()
+  end
+end
+
+function KA.ToggleConfig()
+  if not cfgFrame then BuildConfig() end
+  if cfgFrame and cfgFrame:IsShown() then
+    cfgFrame:Hide()
+  else
+    KA.OpenConfig()
+  end
+end
+
+-- mantém a config aberta em sincronia quando algo muda (ex.: /kalts gold)
+KA.bus:Register(function()
+  if cfgFrame and cfgFrame:IsShown() and cfgFrame.refreshAll then cfgFrame.refreshAll() end
 end)
 
 -- ---------------------------------------------------------------------------

@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.7.0
+
+Janela de configurações própria, modo PvP/PvE/Ambos e rastreio de PvP. / Dedicated settings window, PvP/PvE/Both mode and PvP tracking. / Ventana de configuración propia, modo PvP/PvE/Ambos y seguimiento de PvP.
+
+**Português**
+
+- **Novo: janela de configurações** — abre pela engrenagem no topo do painel ou por `/kalts config`. Sidebar de categorias (Geral, Exibição, Sobre) com barra de acento na ativa, painel rolável com seções douradas e toggles tipo switch (verde ligado / cinza desligado) com descrição. Lembra a última categoria e a posição; botão **Restaurar padrões** no rodapé.
+- **Migrado para a config** — mostrar **Ouro**, mostrar **Profissões**, **agrupar** por reino/facção (cascata liga/critério), **lembrete ao logar** e **ocultar concluídos**. Os atalhos `/kalts gold` e `/kalts prof` continuam funcionando.
+- **Novo: modo PvE / PvP / Ambos** — seletor no topo da config filtra as seções do detalhe de cada personagem. **PvE**: Grande Cofre, M+ por masmorra, lockouts, Delves, moedas. **PvP**: só a seção PvP. **Ambos**: tudo.
+- **Novo: rastreio de PvP** — seção **PvP** no detalhe com **rating por modalidade** (2v2, 3v3, Combate Singular, BG Relâmpago, BG Pontuado), **Conquista** (ganho vs. cap semanal) e **nível de honra**. O progresso semanal zera no reset.
+
+**English**
+
+- **New: settings window** — opens from the gear at the top of the panel or via `/kalts config`. Category sidebar (General, Display, About) with an accent bar on the active one, a scrollable panel with golden sections and switch-style toggles (green on / gray off) with descriptions. Remembers the last category and position; **Restore defaults** button in the footer.
+- **Moved into settings** — show **Gold**, show **Professions**, **group** by realm/faction (toggle + criterion cascade), **login reminder** and **hide completed**. The `/kalts gold` and `/kalts prof` shortcuts still work.
+- **New: PvE / PvP / Both mode** — a selector at the top of settings filters the per-character detail sections. **PvE**: Great Vault, M+ by dungeon, lockouts, Delves, currencies. **PvP**: only the PvP section. **Both**: everything.
+- **New: PvP tracking** — a **PvP** section in the detail with **rating per bracket** (2v2, 3v3, Solo Shuffle, BG Blitz, Rated BG), **Conquest** (earned vs. weekly cap) and **honor level**. Weekly progress resets on reset.
+
+**Español**
+
+- **Nuevo: ventana de configuración** — se abre con el engranaje en la parte superior del panel o con `/kalts config`. Barra lateral de categorías (General, Visualización, Acerca de) con barra de acento en la activa, panel desplazable con secciones doradas e interruptores (verde activado / gris desactivado) con descripción. Recuerda la última categoría y la posición; botón **Restaurar valores** en el pie.
+- **Movido a la configuración** — mostrar **Oro**, mostrar **Profesiones**, **agrupar** por reino/facción (interruptor + criterio en cascada), **recordatorio al iniciar sesión** y **ocultar completados**. Los atajos `/kalts gold` y `/kalts prof` siguen funcionando.
+- **Nuevo: modo PvE / PvP / Ambos** — un selector en la parte superior de la configuración filtra las secciones del detalle de cada personaje. **PvE**: Gran Cámara, M+ por mazmorra, bloqueos, Profundidades, monedas. **PvP**: solo la sección PvP. **Ambos**: todo.
+- **Nuevo: seguimiento de PvP** — una sección **PvP** en el detalle con **puntuación por modalidad** (2c2, 3c3, Combate Singular, BG Relámpago, BG Clasificatoria), **Conquista** (ganado vs. tope semanal) y **nivel de honor**. El progreso semanal se reinicia con el reinicio.
+
 ## 0.6.0
 
 Redesenho "menos é mais": o painel agora destaca o que importa e corta repetição. / "Less is more" redesign: the panel now highlights what matters and cuts repetition. / Rediseño "menos es más": el panel ahora resalta lo importante y elimina repeticiones.

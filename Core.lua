@@ -116,6 +116,45 @@ local EN = {
   REMINDER_RESET   = "%d character(s) with vault objectives left before reset (<24h)",
   REMINDER_ON      = "login reminder ON.",
   REMINDER_OFF     = "login reminder OFF.",
+  -- v0.7.0 — config própria + modos PvP/PvE/Ambos + PvP tracking
+  CFG_TITLE          = "KrononAlts — Settings",
+  CFG_CAT_GENERAL    = "General",
+  CFG_CAT_DISPLAY    = "Display",
+  CFG_CAT_ABOUT      = "About",
+  CFG_MODE_LABEL     = "Mode",
+  CFG_MODE_PVE       = "PvE",
+  CFG_MODE_PVP       = "PvP",
+  CFG_MODE_BOTH      = "Both",
+  CFG_MODE_HINT      = "Filters the per-character detail: PvE objectives, PvP, or everything.",
+  CFG_SEC_BEHAVIOR   = "Behavior",
+  CFG_SEC_ORGANIZE   = "Organization",
+  CFG_SEC_COLUMNS    = "Columns & sections",
+  CFG_RESET          = "Restore defaults",
+  CFG_RESET_CONFIRM  = "Restore all KrononAlts settings to their default values?",
+  CFG_RESET_DONE     = "settings restored to default.",
+  CFG_ABOUT_DESC     = "Cross-character weekly panel for the Kronon ecosystem.",
+  CFG_ABOUT_VERSION  = "Version",
+  CFG_ABOUT_COMMANDS = "Commands",
+  CFG_ABOUT_CMD_LIST = "/kalts — open  \194\183  /kalts config — settings  \194\183  /kalts snapshot — refresh  \194\183  /kalts curr — list currencies",
+  OPT_REMINDER       = "Login reminder",
+  OPT_REMINDER_DESC  = "On login, warn in chat about vaults to collect or objectives left before reset.",
+  OPT_HIDE_DESC      = "Hide characters whose vault is full (3/3/3) and has no reward waiting.",
+  OPT_GOLD           = "Show gold column",
+  OPT_GOLD_DESC      = "Adds a gold column to the table. Account total is always in the minimap tooltip.",
+  OPT_PROF           = "Show professions",
+  OPT_PROF_DESC      = "Adds a Professions section (level and unspent knowledge) to the character detail.",
+  OPT_GROUP          = "Group characters",
+  OPT_GROUP_DESC     = "Group the list by realm or faction.",
+  OPT_GROUP_BY       = "Group by",
+  TIP_CONFIG         = "Settings",
+  DETAIL_PVP         = "PvP",
+  PVP_2V2            = "2v2",
+  PVP_3V3            = "3v3",
+  PVP_RBG            = "Rated BG",
+  PVP_SOLO           = "Solo Shuffle",
+  PVP_BLITZ          = "BG Blitz",
+  PVP_HONOR          = "Honor level",
+  PVP_NONE           = "No PvP data yet — log in on this character.",
 }
 
 local PT = {
@@ -191,6 +230,40 @@ local PT = {
   REMINDER_RESET   = "%d personagem(ns) com objetivos do Cofre faltando antes do reset (<24h)",
   REMINDER_ON      = "lembrete de login LIGADO.",
   REMINDER_OFF     = "lembrete de login DESLIGADO.",
+  CFG_TITLE          = "KrononAlts — Configurações",
+  CFG_CAT_GENERAL    = "Geral",
+  CFG_CAT_DISPLAY    = "Exibição",
+  CFG_CAT_ABOUT      = "Sobre",
+  CFG_MODE_LABEL     = "Modo",
+  CFG_MODE_BOTH      = "Ambos",
+  CFG_MODE_HINT      = "Filtra o detalhe de cada personagem: objetivos PvE, PvP ou tudo.",
+  CFG_SEC_BEHAVIOR   = "Comportamento",
+  CFG_SEC_ORGANIZE   = "Organização",
+  CFG_SEC_COLUMNS    = "Colunas & seções",
+  CFG_RESET          = "Restaurar padrões",
+  CFG_RESET_CONFIRM  = "Restaurar todas as configurações do KrononAlts para os valores padrão?",
+  CFG_RESET_DONE     = "configurações restauradas para o padrão.",
+  CFG_ABOUT_DESC     = "Painel cross-character semanal do ecossistema Kronon.",
+  CFG_ABOUT_VERSION  = "Versão",
+  CFG_ABOUT_COMMANDS = "Comandos",
+  CFG_ABOUT_CMD_LIST = "/kalts — abre  \194\183  /kalts config — configurações  \194\183  /kalts snapshot — atualiza  \194\183  /kalts curr — lista moedas",
+  OPT_REMINDER       = "Lembrete ao logar",
+  OPT_REMINDER_DESC  = "Ao logar, avisa no chat sobre cofres a coletar ou objetivos faltando antes do reset.",
+  OPT_HIDE_DESC      = "Oculta personagens com o cofre cheio (3/3/3) e sem recompensa pendente.",
+  OPT_GOLD           = "Mostrar coluna de ouro",
+  OPT_GOLD_DESC      = "Adiciona uma coluna de ouro à tabela. O total da conta fica sempre no tooltip do minimapa.",
+  OPT_PROF           = "Mostrar profissões",
+  OPT_PROF_DESC      = "Adiciona uma seção de Profissões (nível e conhecimento não-gasto) ao detalhe do personagem.",
+  OPT_GROUP          = "Agrupar personagens",
+  OPT_GROUP_DESC     = "Agrupa a lista por reino ou facção.",
+  OPT_GROUP_BY       = "Agrupar por",
+  TIP_CONFIG         = "Configurações",
+  DETAIL_PVP         = "PvP",
+  PVP_RBG            = "BG Pontuado",
+  PVP_SOLO           = "Combate Singular",
+  PVP_BLITZ          = "BG Relâmpago",
+  PVP_HONOR          = "Nível de honra",
+  PVP_NONE           = "Sem dados de PvP ainda — logue neste personagem.",
 }
 
 local ES = {
@@ -266,6 +339,40 @@ local ES = {
   REMINDER_RESET   = "%d personaje(s) con objetivos de cámara pendientes antes del reinicio (<24h)",
   REMINDER_ON      = "recordatorio de inicio de sesión ACTIVADO.",
   REMINDER_OFF     = "recordatorio de inicio de sesión DESACTIVADO.",
+  CFG_TITLE          = "KrononAlts — Configuración",
+  CFG_CAT_GENERAL    = "General",
+  CFG_CAT_DISPLAY    = "Visualización",
+  CFG_CAT_ABOUT      = "Acerca de",
+  CFG_MODE_LABEL     = "Modo",
+  CFG_MODE_BOTH      = "Ambos",
+  CFG_MODE_HINT      = "Filtra el detalle de cada personaje: objetivos PvE, PvP o todo.",
+  CFG_SEC_BEHAVIOR   = "Comportamiento",
+  CFG_SEC_ORGANIZE   = "Organización",
+  CFG_SEC_COLUMNS    = "Columnas y secciones",
+  CFG_RESET          = "Restaurar valores",
+  CFG_RESET_CONFIRM  = "¿Restaurar toda la configuración de KrononAlts a los valores predeterminados?",
+  CFG_RESET_DONE     = "configuración restaurada a los valores predeterminados.",
+  CFG_ABOUT_DESC     = "Panel semanal multipersonaje del ecosistema Kronon.",
+  CFG_ABOUT_VERSION  = "Versión",
+  CFG_ABOUT_COMMANDS = "Comandos",
+  CFG_ABOUT_CMD_LIST = "/kalts — abre  \194\183  /kalts config — configuración  \194\183  /kalts snapshot — actualiza  \194\183  /kalts curr — lista monedas",
+  OPT_REMINDER       = "Recordatorio al iniciar sesión",
+  OPT_REMINDER_DESC  = "Al iniciar sesión, avisa en el chat sobre cámaras por reclamar u objetivos pendientes antes del reinicio.",
+  OPT_HIDE_DESC      = "Oculta personajes con la cámara llena (3/3/3) y sin recompensa pendiente.",
+  OPT_GOLD           = "Mostrar columna de oro",
+  OPT_GOLD_DESC      = "Añade una columna de oro a la tabla. El total de la cuenta siempre está en el tooltip del minimapa.",
+  OPT_PROF           = "Mostrar profesiones",
+  OPT_PROF_DESC      = "Añade una sección de Profesiones (nivel y conocimiento sin gastar) al detalle del personaje.",
+  OPT_GROUP          = "Agrupar personajes",
+  OPT_GROUP_DESC     = "Agrupa la lista por reino o facción.",
+  OPT_GROUP_BY       = "Agrupar por",
+  TIP_CONFIG         = "Configuración",
+  DETAIL_PVP         = "PvP",
+  PVP_RBG            = "BG Clasificatoria",
+  PVP_SOLO           = "Combate Singular",
+  PVP_BLITZ          = "BG Relámpago",
+  PVP_HONOR          = "Nivel de honor",
+  PVP_NONE           = "Aún sin datos de PvP — entra con este personaje.",
 }
 
 -- Base EN + overlay do locale do cliente; esMX cai em esES; chave inexistente
@@ -325,6 +432,10 @@ local function InitDB()
   if type(KrononAltsDB.groupBy) ~= "string" then KrononAltsDB.groupBy = "none" end
   if KrononAltsDB.showGold == nil then KrononAltsDB.showGold = false end          -- coluna de ouro: OFF por padrão
   if KrononAltsDB.showProfessions == nil then KrononAltsDB.showProfessions = false end -- seção de profissões: OFF por padrão
+  -- v0.7.0: settings da config própria (modo de detalhe + estado da janela de config)
+  if type(KrononAltsDB.settings) ~= "table" then KrononAltsDB.settings = {} end
+  if type(KrononAltsDB.settings.mode) ~= "string" then KrononAltsDB.settings.mode = "pve" end -- pve | pvp | both
+  if type(KrononAltsDB.settings.cfgLastTab) ~= "string" then KrononAltsDB.settings.cfgLastTab = "general" end
   -- KrononAltsDB.sort = { key, dir } — nil = ordenação padrão (logado primeiro)
   DB = KrononAltsDB
 end
@@ -633,6 +744,66 @@ local function SnapshotWeeklies()
   return out
 end
 
+-- ---------------------------------------------------------------------------
+-- PvP (rating por modalidade + Conquista semanal + honra). Totalmente defensivo.
+--   bracketIndex confirmados (retail TWW 11.x / Midnight 12.x), via
+--   CONQUEST_BRACKET_INDEXES = { 7, 9, 1, 2, 4 } (Blizzard_FrameXMLBase/Constants):
+--     1 = 2v2 Arena | 2 = 3v3 Arena | 4 = Rated BG | 7 = Solo Shuffle | 9 = BG Blitz
+--     (3 = 5v5, removida — buraco na sequência, pulado).
+--   GetPersonalRatedInfo(idx) -> rating, seasonBest, weeklyBest, seasonPlayed,
+--     seasonWon, weeklyPlayed, weeklyWon, ...  (usamos rating/seasonBest/weeklyBest/semana).
+-- ---------------------------------------------------------------------------
+local PVP_BRACKETS = {
+  { index = 1, key = "PVP_2V2"   }, -- 2v2 Arena
+  { index = 2, key = "PVP_3V3"   }, -- 3v3 Arena
+  { index = 7, key = "PVP_SOLO"  }, -- Solo Shuffle
+  { index = 9, key = "PVP_BLITZ" }, -- Rated BG Blitz
+  { index = 4, key = "PVP_RBG"   }, -- Rated Battleground
+}
+
+local function SnapshotPvP()
+  local out = { ratings = {} }
+
+  local getRated = (type(GetPersonalRatedInfo) == "function" and GetPersonalRatedInfo)
+    or (C_PvP and type(C_PvP.GetPersonalRatedInfo) == "function" and C_PvP.GetPersonalRatedInfo)
+  if getRated then
+    for _, b in ipairs(PVP_BRACKETS) do
+      local ok, rating, seasonBest, weeklyBest, _, _, weeklyPlayed, weeklyWon =
+        pcall(getRated, b.index)
+      if ok and type(rating) == "number" then
+        out.ratings[#out.ratings + 1] = {
+          bracket      = b.index,
+          key          = b.key,
+          rating       = rating,
+          seasonBest   = (type(seasonBest) == "number") and seasonBest or 0,
+          weeklyBest   = (type(weeklyBest) == "number") and weeklyBest or 0,
+          weeklyPlayed = (type(weeklyPlayed) == "number") and weeklyPlayed or 0,
+          weeklyWon    = (type(weeklyWon) == "number") and weeklyWon or 0,
+        }
+      end
+    end
+  end
+
+  -- Conquista (cap semanal de PvP) — reusa a leitura da currency 1602.
+  if C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo then
+    local ok, info = pcall(C_CurrencyInfo.GetCurrencyInfo, 1602)
+    if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then
+      out.conquest = {
+        name   = info.name,
+        earned = info.quantityEarnedThisWeek or 0,
+        cap    = info.maxWeeklyQuantity or 0,
+        total  = info.quantity or 0,
+      }
+    end
+  end
+
+  -- Honra (nível) — opcional, defensivo.
+  local hl = safeNum(UnitHonorLevel, "player") or safeNum(GetHonorLevel)
+  if hl and hl > 0 then out.honorLevel = hl end
+
+  return out
+end
+
 -- Profissões: nível + conhecimento não-gasto (leitura fria) e concentração
 -- quando disponível. Só lê se as tradeskills estiverem carregadas; caso vazio,
 -- mantém o snapshot anterior (não sobrescreve). Totalmente defensivo.
@@ -734,6 +905,16 @@ local function ZeroWeekly(c)
   -- world bosses e tier de delve da semana zeram no reset
   c.worldBosses = {}
   if type(c.delves) == "table" then c.delves.tier = 0 end
+  -- PvP: progresso SEMANAL zera (conquista ganha, jogos da semana); rating e melhor
+  -- da season permanecem até a próxima leitura no char.
+  if type(c.pvp) == "table" then
+    if type(c.pvp.conquest) == "table" then c.pvp.conquest.earned = 0 end
+    if type(c.pvp.ratings) == "table" then
+      for _, r in ipairs(c.pvp.ratings) do
+        if type(r) == "table" then r.weeklyPlayed = 0; r.weeklyWon = 0; r.weeklyBest = 0 end
+      end
+    end
+  end
 end
 
 local function ZeroSeason(c)
@@ -809,6 +990,10 @@ local function Snapshot()
   local maps = SnapshotMythicPlusByMap(); if #maps > 0 then rec.mplusMaps = maps end
   rec.professions = SnapshotProfessions() -- sempre reflete o char logado (limpa lista antiga)
   local weeklies = SnapshotWeeklies(); if next(weeklies) then rec.weeklies = weeklies end
+  -- PvP: só sobrescreve quando há algo (rating ou conquista) — não zera o alt se a
+  -- API de PvP ainda não carregou no login.
+  local pvp = SnapshotPvP()
+  if pvp and (#pvp.ratings > 0 or pvp.conquest or pvp.honorLevel) then rec.pvp = pvp end
 
   if season then rec.season = season end
   local wsec = GetWeeklySeconds(); if wsec > 0 then rec.weeklyResetAt = now + wsec end -- só grava com a API pronta (evita reset prematuro)
@@ -952,6 +1137,27 @@ function KA.CycleGroupBy()
   if not DB then return end
   local cur = DB.groupBy or "none"
   DB.groupBy = (cur == "none" and "realm") or (cur == "realm" and "faction") or "none"
+  KA.bus:Fire()
+end
+
+-- Define o agrupamento diretamente (usado pela config). Aceita "none"|"realm"|"faction".
+function KA.SetGroupBy(mode)
+  if not DB then return end
+  if mode ~= "none" and mode ~= "realm" and mode ~= "faction" then mode = "none" end
+  DB.groupBy = mode
+  KA.bus:Fire()
+end
+
+-- Modo de detalhe (filtra as seções do painel por personagem): "pve" | "pvp" | "both".
+-- Fonte da verdade em DB.settings.mode; default "pve". Persistido.
+function KA.GetMode()
+  return (DB and DB.settings and DB.settings.mode) or "pve"
+end
+
+function KA.SetMode(mode)
+  if not (DB and DB.settings) then return end
+  if mode ~= "pve" and mode ~= "pvp" and mode ~= "both" then mode = "pve" end
+  DB.settings.mode = mode
   KA.bus:Fire()
 end
 
@@ -1296,6 +1502,10 @@ SlashCmdList["KRONONALTS"] = function(msg)
     return
   elseif msg == "prof" or msg == "profs" or msg == "profissoes" or msg == "profesiones" then
     if KA.ToggleProfessions then KA.ToggleProfessions() end
+    return
+  elseif msg == "config" or msg == "options" or msg == "settings"
+      or msg == "opcoes" or msg == "opções" or msg == "opciones" then
+    if KA.OpenConfig then KA.OpenConfig() end
     return
   end
   if KA.Toggle then KA.Toggle() end

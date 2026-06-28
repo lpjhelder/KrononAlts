@@ -18,6 +18,20 @@ local COLOR_HEADER  = { 0.70, 0.70, 0.74 }
 local COLOR_NEUTRAL = { 0.80, 0.80, 0.84 }      -- cinza-claro neutro (números sem destaque)
 local COLOR_ACTION  = { 1.00, 0.65, 0.25 }      -- laranja "a fazer" (acionável, NÃO é dourado de recompensa)
 
+-- Cores por tier de trilha de loot (aba Chaves): Campeão verde · Herói azul ·
+-- Mítico dourado/laranja. Reusa a paleta do Alts pra ficar coerente.
+local TRACK_TIER_COLOR = {
+  C = { 0.20, 0.82, 0.48 }, -- Campeão (verde)
+  H = { 0.20, 0.55, 1.00 }, -- Herói (azul)
+  M = { 1.00, 0.65, 0.10 }, -- Mítico (dourado/laranja)
+}
+local function TrackName(code)
+  if code == "C" then return L.TRACK_CHAMP end
+  if code == "H" then return L.TRACK_HERO end
+  if code == "M" then return L.TRACK_MYTH end
+  return "?"
+end
+
 -- Paleta da janela de configurações (coerente com a janela do Alts: bg #1D242A,
 -- accent azul, dourado). Verde p/ toggle ligado, cinza p/ desligado.
 local CFG_BG      = { 0.1137, 0.1412, 0.1647 }  -- #1D242A (mesma da janela do Alts)
@@ -188,6 +202,27 @@ local function FormatGold(copper)
   return g .. "g"
 end
 
+-- Formata um número com 1 casa decimal; usa vírgula como separador em pt/es.
+local function FormatDecimal(n)
+  local s = string.format("%.1f", n or 0)
+  local locq = (type(GetLocale) == "function" and GetLocale()) or "enUS"
+  if locq == "ptBR" or locq == "esES" or locq == "esMX" then
+    s = (s:gsub("%.", ","))
+  end
+  return s
+end
+
+-- ilvl EQUIPADO do char logado (2º retorno de GetAverageItemLevel). Defensivo:
+-- nil se a API não respondeu/valor inválido. Cai no overall se equipado vier 0.
+local function PlayerEquippedIlvl()
+  if type(GetAverageItemLevel) ~= "function" then return nil end
+  local ok, overall, equipped = pcall(GetAverageItemLevel)
+  if not ok then return nil end
+  local il = equipped or overall
+  if type(il) == "number" and il > 0 then return math.floor(il + 0.5) end
+  return nil
+end
+
 -- ---------------------------------------------------------------------------
 -- Popups (remover / apelido) — preservados
 -- ---------------------------------------------------------------------------
@@ -267,7 +302,8 @@ local groupHeaders = {}
 local detailFrame
 local expandedKey = nil
 local fullVaultCount = 0 -- nº de chars com cofre 3/3/3 (define glow estático vs. pulsante)
-local Refresh -- forward
+local Refresh   -- forward
+local ApplyView -- forward (alterna a view Personagens ↔ Chaves)
 
 -- Rótulo de facção localizado (usa as globais do cliente; fallback p/ o valor cru)
 local FACTION_LABEL = {
@@ -1118,6 +1154,190 @@ Refresh = function()
   scrollChild:SetHeight(math.max(y, 1))
 end
 
+-- ===========================================================================
+-- VIEW "CHAVES" — tabela de recompensas de Mítica+ por nível de chave (estática,
+-- dados em KA.KEY_REWARDS). Frame filho do frame principal; alterna com a tabela
+-- de personagens via ApplyView. Sem dependência de API (só o ilvl do char p/ as
+-- marcações de upgrade, lido defensivamente).
+-- ===========================================================================
+local KEY_ROW_H = 26
+local KEY_COL   = { key = 8,  endc = 82,  vault = 244, crest = 408 } -- offsets rel. à linha
+local KEY_COL_W = { key = 50, endc = 156, vault = 158, crest = 150 }
+
+-- Célula "ilvl + trilha + rank" colorida por tier; ✓ quando é upgrade pro char.
+local function keyCell(ilvl, tcode, rank, isUp)
+  local col = TRACK_TIER_COLOR[tcode] or COLOR_NEUTRAL
+  local s = colored(col, string.format("%d  %s %s", ilvl, TrackName(tcode), rank))
+  if isUp then s = s .. "  " .. CHECK_ICON end
+  return s
+end
+
+local function BuildKeysView(parent)
+  local kv = CreateFrame("Frame", nil, parent)
+  kv:SetPoint("TOPLEFT", parent, "TOPLEFT", 1, -(TOP_TITLE + 1))
+  kv:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -1, 1)
+  kv:Hide()
+
+  -- título (esquerda) + ilvl do char (direita)
+  local title = kv:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  title:SetPoint("TOPLEFT", kv, "TOPLEFT", 16, -12)
+  title:SetText(L.KEYS_TITLE)
+  title:SetTextColor(ACCENT[1], ACCENT[2], ACCENT[3])
+
+  local ilvlFS = kv:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  ilvlFS:SetPoint("TOPRIGHT", kv, "TOPRIGHT", -16, -14)
+  ilvlFS:SetJustifyH("RIGHT"); ilvlFS:SetWordWrap(false)
+  kv.ilvlFS = ilvlFS
+
+  -- guia (texto curto derivado do ilvl)
+  local guide = kv:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  guide:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
+  guide:SetPoint("RIGHT", kv, "RIGHT", -16, 0)
+  guide:SetJustifyH("LEFT"); guide:SetWordWrap(false)
+  guide:SetTextColor(COLOR_NEUTRAL[1], COLOR_NEUTRAL[2], COLOR_NEUTRAL[3])
+  kv.guide = guide
+
+  -- cabeçalho de colunas
+  local headerBar = CreateFrame("Frame", nil, kv)
+  headerBar:SetPoint("TOPLEFT", guide, "BOTTOMLEFT", -8, -8)
+  headerBar:SetPoint("RIGHT", kv, "RIGHT", -8, 0)
+  headerBar:SetHeight(TOP_HEADER)
+  local hbbg = headerBar:CreateTexture(nil, "BACKGROUND")
+  hbbg:SetAllPoints(); hbbg:SetColorTexture(0, 0, 0, 0.30)
+  local function colHeader(off, w, justify, text)
+    local fs = headerBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fs:SetPoint("LEFT", headerBar, "LEFT", off, 0)
+    fs:SetWidth(w); fs:SetJustifyH(justify); fs:SetWordWrap(false)
+    fs:SetTextColor(COLOR_HEADER[1], COLOR_HEADER[2], COLOR_HEADER[3])
+    fs:SetText(text)
+  end
+  colHeader(KEY_COL.key,   KEY_COL_W.key,   "CENTER", L.KEYS_COL_KEY)
+  colHeader(KEY_COL.endc,  KEY_COL_W.endc,  "LEFT",   L.KEYS_COL_END)
+  colHeader(KEY_COL.vault, KEY_COL_W.vault, "LEFT",   L.KEYS_COL_VAULT)
+  colHeader(KEY_COL.crest, KEY_COL_W.crest, "LEFT",   L.KEYS_COL_CREST)
+
+  -- linhas estáticas (1 por nível de chave) — texto preenchido em kv.refresh
+  kv.rows = {}
+  local data = KA.KEY_REWARDS or {}
+  for i = 1, #data do
+    local r = CreateFrame("Frame", nil, kv)
+    r:SetHeight(KEY_ROW_H)
+    r:SetPoint("TOPLEFT", headerBar, "BOTTOMLEFT", 0, -((i - 1) * KEY_ROW_H))
+    r:SetPoint("RIGHT", headerBar, "RIGHT", 0, 0)
+    r.bg = r:CreateTexture(nil, "BACKGROUND")
+    r.bg:SetAllPoints()
+    r.accent = r:CreateTexture(nil, "ARTWORK")
+    r.accent:SetPoint("TOPLEFT", r, "TOPLEFT", 0, 0)
+    r.accent:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 0, 0)
+    r.accent:SetWidth(3); r.accent:Hide()
+    local function cell(off, w, justify)
+      local fs = r:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+      fs:SetPoint("LEFT", r, "LEFT", off, 0)
+      fs:SetWidth(w); fs:SetJustifyH(justify); fs:SetJustifyV("MIDDLE")
+      fs:SetWordWrap(false)
+      return fs
+    end
+    r.cKey   = cell(KEY_COL.key,   KEY_COL_W.key,   "CENTER")
+    r.cEnd   = cell(KEY_COL.endc,  KEY_COL_W.endc,  "LEFT")
+    r.cVault = cell(KEY_COL.vault, KEY_COL_W.vault, "LEFT")
+    r.cCrest = cell(KEY_COL.crest, KEY_COL_W.crest, "LEFT")
+    kv.rows[i] = r
+  end
+
+  -- rodapé: custo de upgrade + dica derivada da linha de maior chave
+  local foot1 = kv:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  foot1:SetPoint("BOTTOMLEFT", kv, "BOTTOMLEFT", 16, 26)
+  foot1:SetPoint("RIGHT", kv, "RIGHT", -16, 0)
+  foot1:SetJustifyH("LEFT"); foot1:SetWordWrap(true)
+  foot1:SetTextColor(COLOR_NEUTRAL[1], COLOR_NEUTRAL[2], COLOR_NEUTRAL[3])
+  kv.foot1 = foot1
+  local foot2 = kv:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  foot2:SetPoint("BOTTOMLEFT", kv, "BOTTOMLEFT", 16, 8)
+  foot2:SetPoint("RIGHT", kv, "RIGHT", -16, 0)
+  foot2:SetJustifyH("LEFT"); foot2:SetWordWrap(false)
+  kv.foot2 = foot2
+
+  -- (re)preenche tudo o que depende do char logado (ilvl) — chamado ao abrir a
+  -- view e quando o bus dispara (snapshot novo pode mudar o ilvl equipado).
+  kv.refresh = function()
+    local ilvl = PlayerEquippedIlvl()
+
+    -- cabeçalho: "Seu ilvl: X" (ou — se indisponível)
+    if ilvl then
+      kv.ilvlFS:SetText(colored(COLOR_NEUTRAL, string.format(L.KEYS_YOUR_ILVL, ilvl)))
+    else
+      local lbl = (L.KEYS_YOUR_ILVL:gsub("%%d", "%%s"))
+      kv.ilvlFS:SetText(colored(COLOR_MISSING, string.format(lbl, L.NONE)))
+    end
+
+    -- guia: a partir de qual chave Fim/Cofre viram upgrade pro char
+    if not ilvl then
+      kv.guide:SetText(L.KEYS_GUIDE_NONE)
+    else
+      local x, y
+      for _, dRow in ipairs(data) do
+        if not y and dRow.vaultI > ilvl then y = dRow.key end
+        if not x and dRow.endI > ilvl then x = dRow.key end
+      end
+      if x then
+        kv.guide:SetText(string.format(L.KEYS_GUIDE, x, y or x))
+      else
+        kv.guide:SetText(L.KEYS_GUIDE_CAP)
+      end
+    end
+
+    -- linhas
+    for i, dRow in ipairs(data) do
+      local r = kv.rows[i]
+      if r then
+        local prev = data[i - 1]
+        local crestJump = prev and (prev.crestT ~= dRow.crestT) or false
+        local vaultJump = prev and (prev.vaultT ~= dRow.vaultT) or false
+        local isJump = crestJump or vaultJump
+
+        -- fundo: alterna; realça as linhas de "salto" de tier
+        if isJump then
+          r.bg:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 0.07)
+        elseif i % 2 == 0 then
+          r.bg:SetColorTexture(1, 1, 1, 0.02)
+        else
+          r.bg:SetColorTexture(0, 0, 0, 0)
+        end
+        -- acento à esquerda na cor do NOVO tier (brasão tem prioridade; senão cofre)
+        if isJump then
+          local jc = TRACK_TIER_COLOR[(crestJump and dRow.crestT) or dRow.vaultT] or COLOR_NEUTRAL
+          r.accent:SetColorTexture(jc[1], jc[2], jc[3], 1); r.accent:Show()
+        else
+          r.accent:Hide()
+        end
+
+        r.cKey:SetText(colored(COLOR_NEUTRAL, "+" .. dRow.key))
+        r.cEnd:SetText(keyCell(dRow.endI, dRow.endT, dRow.endR, ilvl and dRow.endI > ilvl))
+        r.cVault:SetText(keyCell(dRow.vaultI, dRow.vaultT, dRow.vaultR, ilvl and dRow.vaultI > ilvl))
+        r.cCrest:SetText(colored(TRACK_TIER_COLOR[dRow.crestT] or COLOR_NEUTRAL,
+          dRow.crest .. " " .. TrackName(dRow.crestT)))
+        r:Show()
+      end
+    end
+
+    -- rodapé
+    local uc = KA.UPGRADE_COST or { perRank = 20, perItem = 120, weeklyCap = 100 }
+    kv.foot1:SetText(string.format(L.KEYS_UPGRADE_COST,
+      uc.perRank or 20, uc.perItem or 120, uc.weeklyCap or 100))
+    local tipRow = data[#data]
+    if tipRow and (uc.perRank or 0) > 0 then
+      local ratio = tipRow.crest / uc.perRank
+      kv.foot2:SetText(colored(TRACK_TIER_COLOR[tipRow.crestT] or COLOR_NEUTRAL,
+        string.format(L.KEYS_UPGRADE_TIP, tipRow.key, tipRow.crest,
+          TrackName(tipRow.crestT), FormatDecimal(ratio))))
+    else
+      kv.foot2:SetText("")
+    end
+  end
+
+  return kv
+end
+
 -- ---------------------------------------------------------------------------
 -- Posição persistida
 -- ---------------------------------------------------------------------------
@@ -1135,6 +1355,30 @@ local function ApplyPosition(self)
     self:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, pos.x or 0, pos.y or 0)
   else
     self:SetPoint("CENTER")
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- Alterna a view (Personagens ↔ Chaves) sem resíduo: esconde os widgets da
+-- tabela de personagens e mostra a view de recompensas (ou o inverso). Em
+-- "chars" repassa pro Refresh normal; em "keys" repinta a tabela de chaves.
+-- ---------------------------------------------------------------------------
+ApplyView = function()
+  if not frame then return end
+  local keys = (((KA.GetView and KA.GetView()) or "chars") == "keys")
+  if frame.summary     then frame.summary:SetShown(not keys) end
+  if frame.groupBtn    then frame.groupBtn:SetShown(not keys) end
+  if frame.hideCb      then frame.hideCb:SetShown(not keys) end
+  if frame.hideCbLabel then frame.hideCbLabel:SetShown(not keys) end
+  if frame.headerBar   then frame.headerBar:SetShown(not keys) end
+  if frame.scroll      then frame.scroll:SetShown(not keys) end
+  if frame.keysView    then frame.keysView:SetShown(keys) end
+  if frame.paintView   then frame.paintView() end
+  if keys then
+    if frame.empty then frame.empty:Hide() end
+    if frame.keysView and frame.keysView.refresh then frame.keysView.refresh() end
+  else
+    Refresh()
   end
 end
 
@@ -1204,6 +1448,45 @@ local function BuildFrame()
   title:SetText(L.TITLE)
   title:SetTextColor(1, 1, 1)
 
+  -- TOGGLE DE VIEW (abas): Personagens | Chaves — na titlebar, após o título.
+  -- A aba ativa ganha um filete azul embaixo; clicar persiste via KA.SetView
+  -- (dispara o bus → ApplyView alterna a view).
+  frame.viewTabs = {}
+  local function makeViewTab(text, viewKey, anchor, gap)
+    local b = CreateFrame("Button", nil, tb)
+    b:SetHeight(18)
+    b:SetPoint("LEFT", anchor, "RIGHT", gap, 0)
+    local fs = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fs:SetPoint("LEFT", b, "LEFT", 6, 0)
+    fs:SetText(text)
+    b:SetWidth((fs:GetStringWidth() or 40) + 12)
+    b.fs = fs
+    local bar = b:CreateTexture(nil, "ARTWORK")
+    bar:SetHeight(2)
+    bar:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 4, -1)
+    bar:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -4, -1)
+    bar:SetColorTexture(ACCENT_BLUE[1], ACCENT_BLUE[2], ACCENT_BLUE[3], 1)
+    bar:Hide()
+    b.bar = bar
+    b.viewKey = viewKey
+    b:SetScript("OnClick", function() if KA.SetView then KA.SetView(viewKey) end end)
+    b:SetScript("OnEnter", function(self) self.fs:SetTextColor(1, 1, 1) end)
+    b:SetScript("OnLeave", function() if frame.paintView then frame.paintView() end end)
+    frame.viewTabs[#frame.viewTabs + 1] = b
+    return b
+  end
+  local tabChars = makeViewTab(L.VIEW_CHARS, "chars", title, 16)
+  makeViewTab(L.VIEW_KEYS, "keys", tabChars, 2)
+  frame.paintView = function()
+    local view = (KA.GetView and KA.GetView()) or "chars"
+    for _, b in ipairs(frame.viewTabs) do
+      local active = (b.viewKey == view)
+      b.bar:SetShown(active)
+      if active then b.fs:SetTextColor(1, 1, 1)
+      else b.fs:SetTextColor(0.6, 0.6, 0.6) end
+    end
+  end
+
   local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
   close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 1, 1)
   close:SetFrameLevel(tb:GetFrameLevel() + 5)
@@ -1254,6 +1537,7 @@ local function BuildFrame()
   cbLabel:SetPoint("RIGHT", hideCb, "LEFT", -2, 0)
   cbLabel:SetText(L.HIDE_COMPLETED)
   cbLabel:SetTextColor(COLOR_HEADER[1], COLOR_HEADER[2], COLOR_HEADER[3])
+  frame.hideCbLabel = cbLabel
   hideCb:SetChecked(KA.GetHideCompleted and KA.GetHideCompleted() or false)
   hideCb:SetScript("OnClick", function(self)
     if KA.SetHideCompleted then KA.SetHideCompleted(self:GetChecked()) end
@@ -1294,6 +1578,7 @@ local function BuildFrame()
   local hbbg = headerBar:CreateTexture(nil, "BACKGROUND")
   hbbg:SetAllPoints()
   hbbg:SetColorTexture(0, 0, 0, 0.30)
+  frame.headerBar = headerBar
 
   frame.headers = {}
   for _, col in ipairs(COLS) do
@@ -1357,6 +1642,9 @@ local function BuildFrame()
   empty:Hide()
   frame.empty = empty
 
+  -- VIEW DE RECOMPENSAS (aba "Chaves") — criada uma vez, escondida por padrão.
+  frame.keysView = BuildKeysView(frame)
+
   -- ticker do countdown (1s)
   frame.elapsed = 1
   frame:SetScript("OnUpdate", function(self, e)
@@ -1369,7 +1657,7 @@ local function BuildFrame()
       L.RESET_WEEKLY, FormatCountdown(info.weeklySeconds)))
   end)
 
-  Refresh()
+  ApplyView() -- aplica a view salva (Personagens/Chaves) e faz o 1º Refresh
   -- nasce oculta: KA.Toggle/Open decidem mostrar (e disparam o fade-in no OnShow).
   -- Sem isto, o frame criado já vem visível e o 1º Toggle apenas o esconderia.
   frame:Hide()
@@ -1384,7 +1672,7 @@ function KA.Toggle()
   if frame:IsShown() then
     frame:Hide()
   else
-    Refresh()
+    ApplyView()
     frame:Show()
   end
 end
@@ -1396,7 +1684,7 @@ function KA.Open()
 end
 
 KA.bus:Register(function()
-  if frame and frame:IsShown() then Refresh() end
+  if frame and frame:IsShown() then ApplyView() end
 end)
 
 -- ===========================================================================

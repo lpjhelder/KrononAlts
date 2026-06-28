@@ -157,6 +157,23 @@ local EN = {
   PVP_BLITZ          = "BG Blitz",
   PVP_HONOR          = "Honor level",
   PVP_NONE           = "No PvP data yet — log in on this character.",
+  -- v0.8.0 — aba "Chaves" (recompensas de Mítica+ por nível de chave)
+  VIEW_CHARS       = "Characters",
+  VIEW_KEYS        = "Keys",
+  TRACK_CHAMP      = "Champion",
+  TRACK_HERO       = "Hero",
+  TRACK_MYTH       = "Myth",
+  KEYS_TITLE       = "Mythic+ rewards  \194\183  Season 1",
+  KEYS_YOUR_ILVL   = "Your ilvl: %d",
+  KEYS_COL_KEY     = "Key",
+  KEYS_COL_END     = "End of run",
+  KEYS_COL_VAULT   = "Great Vault",
+  KEYS_COL_CREST   = "Crests",
+  KEYS_GUIDE       = "End-of-run rises from +%d  \194\183  Vault from +%d",
+  KEYS_GUIDE_NONE  = "Log in on a character to see what's an upgrade for you.",
+  KEYS_GUIDE_CAP   = "Your gear already beats every reward in this table.",
+  KEYS_UPGRADE_COST= "Each upgrade costs %d crests/level  \194\183  full item (6 levels) = %d  \194\183  cap %d/week per type.",
+  KEYS_UPGRADE_TIP = "+%d gives %d %s  \226\137\136  %s upgrade",
 }
 
 local PT = {
@@ -268,6 +285,22 @@ local PT = {
   PVP_BLITZ          = "BG Relâmpago",
   PVP_HONOR          = "Nível de honra",
   PVP_NONE           = "Sem dados de PvP ainda — logue neste personagem.",
+  VIEW_CHARS       = "Personagens",
+  VIEW_KEYS        = "Chaves",
+  TRACK_CHAMP      = "Campeão",
+  TRACK_HERO       = "Herói",
+  TRACK_MYTH       = "Mítico",
+  KEYS_TITLE       = "Recompensas de Mítica+  \194\183  Temporada 1",
+  KEYS_YOUR_ILVL   = "Seu ilvl: %d",
+  KEYS_COL_KEY     = "Chave",
+  KEYS_COL_END     = "Fim da dg",
+  KEYS_COL_VAULT   = "No Cofre",
+  KEYS_COL_CREST   = "Brasão",
+  KEYS_GUIDE       = "Fim sobe a partir de +%d  \194\183  Cofre a partir de +%d",
+  KEYS_GUIDE_NONE  = "Logue num personagem para ver o que é upgrade pra você.",
+  KEYS_GUIDE_CAP   = "Seu equipamento já supera todas as recompensas desta tabela.",
+  KEYS_UPGRADE_COST= "Cada melhoria custa %d brasões/nível  \194\183  item inteiro (6 níveis) = %d  \194\183  limite %d/semana por tipo.",
+  KEYS_UPGRADE_TIP = "+%d dá %d %s  \226\137\136  %s melhoria",
 }
 
 local ES = {
@@ -379,6 +412,22 @@ local ES = {
   PVP_BLITZ          = "BG Relámpago",
   PVP_HONOR          = "Nivel de honor",
   PVP_NONE           = "Aún sin datos de PvP — entra con este personaje.",
+  VIEW_CHARS       = "Personajes",
+  VIEW_KEYS        = "Llaves",
+  TRACK_CHAMP      = "Campeón",
+  TRACK_HERO       = "Héroe",
+  TRACK_MYTH       = "Mítico",
+  KEYS_TITLE       = "Recompensas de Mítica+  \194\183  Temporada 1",
+  KEYS_YOUR_ILVL   = "Tu ilvl: %d",
+  KEYS_COL_KEY     = "Llave",
+  KEYS_COL_END     = "Fin de mazm.",
+  KEYS_COL_VAULT   = "Cámara",
+  KEYS_COL_CREST   = "Blasón",
+  KEYS_GUIDE       = "El fin sube desde +%d  \194\183  Cámara desde +%d",
+  KEYS_GUIDE_NONE  = "Entra con un personaje para ver qué es mejora para ti.",
+  KEYS_GUIDE_CAP   = "Tu equipo ya supera todas las recompensas de esta tabla.",
+  KEYS_UPGRADE_COST= "Cada mejora cuesta %d blasones/nivel  \194\183  objeto completo (6 niveles) = %d  \194\183  límite %d/semana por tipo.",
+  KEYS_UPGRADE_TIP = "+%d da %d %s  \226\137\136  %s mejora",
 }
 
 -- Base EN + overlay do locale do cliente; esMX cai em esES; chave inexistente
@@ -442,6 +491,7 @@ local function InitDB()
   if type(KrononAltsDB.settings) ~= "table" then KrononAltsDB.settings = {} end
   if type(KrononAltsDB.settings.mode) ~= "string" then KrononAltsDB.settings.mode = "pve" end -- pve | pvp | both
   if type(KrononAltsDB.settings.cfgLastTab) ~= "string" then KrononAltsDB.settings.cfgLastTab = "general" end
+  if type(KrononAltsDB.settings.view) ~= "string" then KrononAltsDB.settings.view = "chars" end -- "chars" | "keys"
   -- KrononAltsDB.sort = { key, dir } — nil = ordenação padrão (logado primeiro)
   DB = KrononAltsDB
 end
@@ -1166,6 +1216,48 @@ function KA.SetMode(mode)
   DB.settings.mode = mode
   KA.bus:Fire()
 end
+
+-- ---------------------------------------------------------------------------
+-- View da janela (toggle de abas): "chars" (tabela de personagens) | "keys"
+-- (tabela de recompensas de Mítica+). Fonte da verdade em DB.settings.view;
+-- default "chars". Persistido. Dispara o bus → a UI alterna a view.
+-- ---------------------------------------------------------------------------
+function KA.GetView()
+  return (DB and DB.settings and DB.settings.view) or "chars"
+end
+
+function KA.SetView(view)
+  if not (DB and DB.settings) then return end
+  if view ~= "chars" and view ~= "keys" then view = "chars" end
+  DB.settings.view = view
+  KA.bus:Fire()
+end
+
+-- ---------------------------------------------------------------------------
+-- Tabela de recompensas de Mítica+ — Midnight Season 1 (bloco hardcoded, fácil
+-- de editar a cada season). 9 linhas SEM PULAR (+2..+10). Para cada nível de
+-- chave: ilvl + trilha do item de FIM da masmorra e do GRANDE COFRE, e a
+-- quantidade + tier do BRASÃO (crest) ganho.
+--   tier: "C" = Campeão | "H" = Herói | "M" = Mítico
+--   rank: posição "x/6" dentro da trilha (cada trilha tem 6 níveis de upgrade)
+-- A UI (UI.lua) localiza os tiers e colore por faixa; nada aqui depende de API.
+-- ---------------------------------------------------------------------------
+KA.KEY_REWARDS = {
+  { key = 2,  endI = 250, endT = "C", endR = "2/6", vaultI = 259, vaultT = "H", vaultR = "1/6", crest = 12, crestT = "C" },
+  { key = 3,  endI = 250, endT = "C", endR = "2/6", vaultI = 259, vaultT = "H", vaultR = "1/6", crest = 14, crestT = "C" },
+  { key = 4,  endI = 253, endT = "C", endR = "3/6", vaultI = 263, vaultT = "H", vaultR = "2/6", crest = 10, crestT = "H" },
+  { key = 5,  endI = 256, endT = "C", endR = "4/6", vaultI = 263, vaultT = "H", vaultR = "2/6", crest = 12, crestT = "H" },
+  { key = 6,  endI = 259, endT = "H", endR = "1/6", vaultI = 266, vaultT = "H", vaultR = "3/6", crest = 14, crestT = "H" },
+  { key = 7,  endI = 259, endT = "H", endR = "1/6", vaultI = 269, vaultT = "H", vaultR = "4/6", crest = 16, crestT = "H" },
+  { key = 8,  endI = 263, endT = "H", endR = "2/6", vaultI = 269, vaultT = "H", vaultR = "4/6", crest = 18, crestT = "H" },
+  { key = 9,  endI = 263, endT = "H", endR = "2/6", vaultI = 269, vaultT = "H", vaultR = "4/6", crest = 10, crestT = "M" },
+  { key = 10, endI = 266, endT = "H", endR = "3/6", vaultI = 272, vaultT = "M", vaultR = "1/6", crest = 12, crestT = "M" },
+}
+
+-- Custo de upgrade (Midnight Season 1): cada nível de upgrade de um item custa
+-- `perRank` brasões; um item inteiro (6 níveis) custa `perItem`; o ganho semanal
+-- de cada TIPO de brasão tem teto `weeklyCap`. Usado pelo rodapé da aba Chaves.
+KA.UPGRADE_COST = { perRank = 20, perItem = 120, weeklyCap = 100 }
 
 local function vaultFilledSum(d)
   local v = d.vault

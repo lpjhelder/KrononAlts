@@ -4,7 +4,11 @@ Painel **cross-character** de objetivos semanais para o ecossistema **Kronon**. 
 
 ## A janela
 
-Painel escuro flat com uma **titlebar** (ícone, título e o countdown de reset semanal/diário) que também é a alça de arrastar — **a posição é salva** entre sessões. Abaixo, uma **linha de resumo** ("X/Y cofres prontos · N com recompensa esperando · M personagens") e a **tabela** (com rolagem para muitos alts).
+Painel escuro flat com uma **titlebar** (ícone, título e o countdown de reset semanal/diário) que também é a alça de arrastar — **a posição é salva** entre sessões. Na titlebar há também um **toggle de view** com duas abas, **Personagens** e **Chaves** (a escolha é salva). Abaixo, uma **linha de resumo** ("X/Y cofres prontos · N com recompensa esperando · M personagens") e a **tabela** (com rolagem para muitos alts).
+
+## Aba Chaves
+
+A aba **Chaves** mostra a **tabela de recompensas de Mítica+ da Temporada 1**, com todas as 9 linhas de **+2 a +10**: o item de **fim da masmorra** e do **Grande Cofre** (ilvl + trilha) e o **brasão** ganho (quantidade + tier). As trilhas são coloridas por tier — **Campeão** verde, **Herói** azul, **Mítico** dourado — e as linhas de **salto** (quando o brasão muda de tier em **+4** e **+9**, e o Cofre vira Mítico em **+10**) ganham realce. No topo aparece o **seu ilvl equipado** e cada chave cujo Fim/Cofre já é upgrade pra você recebe um **✓**; um guia curto indica a partir de qual chave o Fim e o Cofre passam a melhorar seu equipamento. O **rodapé** lembra o custo de upgrade (20 brasões por nível, 120 por item inteiro, limite de 100/semana por tipo).
 
 ## Colunas
 

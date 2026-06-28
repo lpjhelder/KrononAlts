@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.8.0
+
+Nova aba **Chaves** com a tabela de recompensas de Mítica+. / New **Keys** tab with the Mythic+ rewards table. / Nueva pestaña **Llaves** con la tabla de recompensas de Mítica+.
+
+**Português**
+
+- **Nova aba "Chaves"** — dois botões de view no topo da janela alternam entre **Personagens** (a tabela de sempre) e **Chaves**. A escolha é salva entre sessões.
+- **Tabela de recompensas de Mítica+ · Temporada 1** — todas as 9 linhas de **+2 a +10**, com o item de **fim da masmorra** e do **Grande Cofre** (ilvl + trilha) e o **brasão** ganho (quantidade + tier). As trilhas são coloridas por tier: **Campeão** verde, **Herói** azul, **Mítico** dourado.
+- **Destaque dos saltos** — as linhas onde o brasão muda de tier (**+4** vira Herói, **+9** vira Mítico) e onde o Cofre vira Mítico (**+10**) ganham realce e um acento na cor do novo tier.
+- **No contexto do seu personagem** — mostra o **seu ilvl equipado** e marca com **✓** as chaves cujo Fim/Cofre já são upgrade; um guia curto resume "Fim sobe a partir de +X · Cofre a partir de +Y".
+- **Rodapé de upgrade** — lembra o custo (20 brasões por nível, 120 por item inteiro, limite de 100/semana por tipo) com uma dica derivada da própria tabela.
+
+**English**
+
+- **New "Keys" tab** — two view buttons at the top of the window switch between **Characters** (the usual table) and **Keys**. The choice is saved across sessions.
+- **Mythic+ rewards table · Season 1** — all 9 rows from **+2 to +10**, with the **end-of-run** and **Great Vault** item (ilvl + track) and the **crest** earned (amount + tier). Tracks are colored by tier: **Champion** green, **Hero** blue, **Myth** gold.
+- **Tier-jump highlights** — the rows where the crest changes tier (**+4** becomes Hero, **+9** becomes Myth) and where the Vault turns Myth (**+10**) get a highlight and an accent in the new tier's color.
+- **In your character's context** — shows your **equipped ilvl** and flags with **✓** the keys whose End/Vault reward is already an upgrade; a short guide sums up "End-of-run rises from +X · Vault from +Y".
+- **Upgrade footer** — recaps the cost (20 crests per level, 120 for a full item, 100/week cap per type) with a tip derived from the table itself.
+
+**Español**
+
+- **Nueva pestaña "Llaves"** — dos botones de vista en la parte superior de la ventana alternan entre **Personajes** (la tabla de siempre) y **Llaves**. La elección se guarda entre sesiones.
+- **Tabla de recompensas de Mítica+ · Temporada 1** — las 9 filas de **+2 a +10**, con el objeto de **fin de mazmorra** y de la **Gran Cámara** (ilvl + nivel) y el **blasón** obtenido (cantidad + nivel). Los niveles se colorean por tier: **Campeón** verde, **Héroe** azul, **Mítico** dorado.
+- **Resalte de saltos** — las filas donde el blasón cambia de tier (**+4** pasa a Héroe, **+9** pasa a Mítico) y donde la Cámara pasa a Mítico (**+10**) reciben un resalte y un acento en el color del nuevo tier.
+- **En el contexto de tu personaje** — muestra tu **ilvl equipado** y marca con **✓** las llaves cuyo Fin/Cámara ya son mejora; una guía corta resume "El fin sube desde +X · Cámara desde +Y".
+- **Pie de mejora** — recuerda el coste (20 blasones por nivel, 120 por objeto completo, límite de 100/semana por tipo) con un consejo derivado de la propia tabla.
+
 ## 0.7.2
 **Português**
 - **Novo:** no modo **PvP**, o tooltip ao passar o mouse num personagem mostra o rating por modalidade (2v2/3v3/RBG/Solo Shuffle/Blitz), a Conquista e a honra — antes mostrava só o M+.

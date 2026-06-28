@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.9.0
+
+Nova aba **Progresso** ("O que fazer agora") com um coach de upgrade. / New **Progress** tab ("What to do now") with an upgrade coach. / Nueva pestaña **Progreso** ("Qué hacer ahora") con un coach de mejora.
+
+**Português**
+
+- **Nova aba "Progresso"** — uma terceira view, ao lado de **Personagens** e **Chaves**, que lê o personagem logado e diz **o que fazer agora** para subir de item level.
+- **Resumo de equipamento + diagnóstico** — varre o gear equipado, identifica a **trilha** de cada peça (**Campeão** / **Herói** / **Mítico**, coloridas), mostra **quantas peças ainda dá pra melhorar**, aponta o **elo mais fraco** (slot onde focar primeiro) e seu **ilvl / 289** (teto da season).
+- **Brasões com cap semanal** — mostra quanto você tem de cada brasão e o **progresso do limite da semana** (ex.: "Herói: 64 (40/100 esta semana)"), usando o teto **real** da API (respeita o catch-up que acumula com as semanas), e **avisa quando um brasão está perto do cap** — gaste antes do reset.
+- **Sugestões acionáveis + tabela de prioridade** — **Gastar brasões** por trilha (quantos upgrades já dá pra fazer, quantos brasões faltam pra maxar); **qual chave** fazer conforme seu equipamento (Mítica 0 → +6/+7 → +9/+10 → +10) com o objetivo **+10 (Cofre Mítico)**; e uma **tabela de prioridade de dungeons** que mostra, por dungeon (com ícone), os seus favoritos **como ícones** (tooltip ao passar o mouse, estrela de **BiS**/**essencial**), ordenada pela quantidade.
+- **Visual renovado** — o addon inteiro ganhou um estilo coeso (linhas zebradas, divisórias finas, abas com destaque do ativo, ícones de dungeon/item) inspirado no KeystoneLoot. É só aparência: dados, ordenação, cálculos e comportamento continuam idênticos.
+- **Integração opcional com o KeystoneLoot** — as sugestões de BiS por dungeon usam seus favoritos do KeystoneLoot quando ele está instalado; sem ele, o resto do coach continua funcionando normalmente.
+- **Respeita o modo** — as abas **Chaves** e **Progresso** ficam ocultas no modo **somente PvP** (recompensas de M+ não fazem sentido ali).
+
+**English**
+
+- **New "Progress" tab** — a third view, alongside **Characters** and **Keys**, that reads your logged-in character and tells you **what to do now** to raise your item level.
+- **Gear summary + diagnostic** — scans your equipped gear, identifies each piece's **track** (**Champion** / **Hero** / **Myth**, color-coded), shows **how many pieces can still be upgraded**, points out your **weakest link** (the slot to focus first) and your **ilvl / 289** (season cap).
+- **Crests with weekly cap** — shows how much of each crest you have plus the **weekly cap progress** (e.g. "Hero: 64 (40/100 this week)"), using the API's **real** cap (honors the catch-up that grows week over week), and **warns when a crest is near the cap** — spend before reset.
+- **Actionable suggestions + priority table** — **Spend crests** per track (how many upgrades you can do now, how many crests left to max); **which key** to run based on your gear (Mythic 0 → +6/+7 → +9/+10 → +10) with the **+10 (Mythic Vault)** goal; and a **dungeon priority table** showing, per dungeon (with icon), your favorites **as item icons** (hover tooltip, **BiS**/**essential** star), ordered by count.
+- **Refreshed look** — the whole addon got a cohesive style (zebra rows, thin dividers, active-tab highlight, dungeon/item icons) inspired by KeystoneLoot. Visual only: data, sorting, calculations and behavior are unchanged.
+- **Optional KeystoneLoot integration** — the per-dungeon BiS suggestions use your KeystoneLoot favorites when it is installed; without it, the rest of the coach keeps working.
+- **Mode-aware** — the **Keys** and **Progress** tabs are hidden in **PvP-only** mode (M+ rewards do not apply there).
+
+**Español**
+
+- **Nueva pestaña "Progreso"** — una tercera vista, junto a **Personajes** y **Llaves**, que lee tu personaje conectado y te dice **qué hacer ahora** para subir tu nivel de objeto.
+- **Resumen de equipo + diagnóstico** — escanea tu equipo, identifica la **vía** de cada pieza (**Campeón** / **Héroe** / **Mítico**, con color), muestra **cuántas piezas se pueden mejorar todavía**, señala el **eslabón más débil** (la ranura en la que enfocarte primero) y tu **ilvl / 289** (tope de temporada).
+- **Blasones con tope semanal** — muestra cuánto tienes de cada blasón y el **progreso del tope de la semana** (p. ej. "Héroe: 64 (40/100 esta semana)"), usando el tope **real** de la API (respeta el catch-up que se acumula semana a semana), y **avisa cuando un blasón está cerca del tope** — gasta antes del reinicio.
+- **Sugerencias accionables + tabla de prioridad** — **Gastar blasones** por vía (cuántas mejoras puedes hacer ya, cuántos blasones faltan para maximizar); **qué llave** hacer según tu equipo (Mítica 0 → +6/+7 → +9/+10 → +10) con el objetivo **+10 (Cámara Mítica)**; y una **tabla de prioridad de mazmorras** que muestra, por mazmorra (con icono), tus favoritos **como iconos** (tooltip al pasar el ratón, estrella de **BiS**/**esencial**), ordenada por cantidad.
+- **Aspecto renovado** — todo el addon recibió un estilo coherente (filas cebra, divisores finos, resalte de la pestaña activa, iconos de mazmorra/objeto) inspirado en KeystoneLoot. Solo apariencia: datos, orden, cálculos y comportamiento no cambian.
+- **Integración opcional con KeystoneLoot** — las sugerencias de BiS por mazmorra usan tus favoritos de KeystoneLoot cuando está instalado; sin él, el resto del coach sigue funcionando.
+- **Respeta el modo** — las pestañas **Llaves** y **Progreso** se ocultan en modo **solo PvP** (las recompensas de M+ no aplican ahí).
+
 ## 0.8.0
 
 Nova aba **Chaves** com a tabela de recompensas de Mítica+. / New **Keys** tab with the Mythic+ rewards table. / Nueva pestaña **Llaves** con la tabla de recompensas de Mítica+.

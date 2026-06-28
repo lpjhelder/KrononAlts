@@ -160,6 +160,7 @@ local EN = {
   -- v0.8.0 — aba "Chaves" (recompensas de Mítica+ por nível de chave)
   VIEW_CHARS       = "Characters",
   VIEW_KEYS        = "Keys",
+  VIEW_COACH       = "Progress",
   TRACK_CHAMP      = "Champion",
   TRACK_HERO       = "Hero",
   TRACK_MYTH       = "Myth",
@@ -174,6 +175,37 @@ local EN = {
   KEYS_GUIDE_CAP   = "Your gear already beats every reward in this table.",
   KEYS_UPGRADE_COST= "Each upgrade costs %d crests/level  \194\183  full item (6 levels) = %d  \194\183  cap %d/week per type.",
   KEYS_UPGRADE_TIP = "+%d gives %d %s  \226\137\136  %s upgrade",
+  -- v0.9.0 — coach de progressão ("O que fazer agora") no topo da aba Chaves
+  KEYS_COACH_TITLE     = "What to do now",
+  KEYS_COACH_GEAR      = "Gear: %s  \194\183  %d below max",
+  KEYS_COACH_GEAR_NONE = "Gear: %d pieces equipped (no upgrade track detected)",
+  KEYS_COACH_CRESTS    = "Crests: %s",
+  KEYS_COACH_CRESTS_NONE = "Crests: data not available yet",
+  KEYS_COACH_CREST_ITEM       = "%s: %d (%d/%d this week)",
+  KEYS_COACH_CREST_ITEM_NOWEEK= "%s: %d",
+  KEYS_COACH_SPEND_HAS = "%s: %d pieces \194\183 %d upgrade(s) now (%d crests) \194\183 %d to max",
+  KEYS_COACH_SPEND_MAXALL = "%s: %d pieces \194\183 can max all now (%d crests)",
+  KEYS_COACH_SPEND_LOW = "%s: %d pieces \194\183 gather +%d for 1 upgrade",
+  KEYS_COACH_SPEND_NONE= "No crests to spend right now \226\128\148 earn more from keys",
+  KEYS_COACH_KEYS      = "Keys: %s  \194\183  %s",
+  KEYS_COACH_KEY_GOAL  = "goal: Mythic Vault",
+  KEYS_COACH_NK_NONE_K = "Mythic 0",
+  KEYS_COACH_NK_NONE_M = "Run Mythic 0 first (gives Champion 246); start M+ afterwards",
+  KEYS_COACH_NK_CHAMP_K= "+6/+7",
+  KEYS_COACH_NK_CHAMP_M= "Run +6/+7 \226\128\148 Hero gear starts dropping",
+  KEYS_COACH_NK_HERO_K = "+9/+10",
+  KEYS_COACH_NK_HERO_M = "Run +9/+10 \226\128\148 Myth drops (Vault 272)",
+  KEYS_COACH_NK_MYTH_K = "+10",
+  KEYS_COACH_NK_MYTH_M = "+10 is the cap \226\128\148 farm Myth crests up to 289",
+  KEYS_COACH_CAP_WARN  = "%s crests near weekly cap (%d/%d) \226\128\148 spend before reset",
+  KEYS_COACH_WEAK      = "Focus: %s (%s)",
+  KEYS_COACH_ILVL      = "Your ilvl: %d / %d (season cap)",
+  KEYS_COACH_BIS_NONE  = "Mark BiS items in KeystoneLoot for a dungeon recommendation",
+  KEYS_COACH_PRIO_BIS  = "Priority (by your BiS)",
+  KEYS_COACH_PRIO_ESS  = "Priority (by your essentials)",
+  KEYS_COACH_PRIO_MORE = "+%d more dungeons",
+  KEYS_COACH_KL_ON     = "KeystoneLoot detected \226\128\148 BiS suggestions enabled.",
+  KEYS_COACH_KL_OFF    = "Tip: install KeystoneLoot and mark your BiS to unlock dungeon suggestions.",
 }
 
 local PT = {
@@ -287,6 +319,7 @@ local PT = {
   PVP_NONE           = "Sem dados de PvP ainda — logue neste personagem.",
   VIEW_CHARS       = "Personagens",
   VIEW_KEYS        = "Chaves",
+  VIEW_COACH       = "Progresso",
   TRACK_CHAMP      = "Campeão",
   TRACK_HERO       = "Herói",
   TRACK_MYTH       = "Mítico",
@@ -301,6 +334,36 @@ local PT = {
   KEYS_GUIDE_CAP   = "Seu equipamento já supera todas as recompensas desta tabela.",
   KEYS_UPGRADE_COST= "Cada melhoria custa %d brasões/nível  \194\183  item inteiro (6 níveis) = %d  \194\183  limite %d/semana por tipo.",
   KEYS_UPGRADE_TIP = "+%d dá %d %s  \226\137\136  %s melhoria",
+  KEYS_COACH_TITLE     = "O que fazer agora",
+  KEYS_COACH_GEAR      = "Equipamento: %s  \194\183  %d abaixo do máximo",
+  KEYS_COACH_GEAR_NONE = "Equipamento: %d peças equipadas (sem trilha de melhoria detectada)",
+  KEYS_COACH_CRESTS    = "Brasões: %s",
+  KEYS_COACH_CRESTS_NONE = "Brasões: dados ainda indisponíveis",
+  KEYS_COACH_CREST_ITEM       = "%s: %d (%d/%d esta semana)",
+  KEYS_COACH_CREST_ITEM_NOWEEK= "%s: %d",
+  KEYS_COACH_SPEND_HAS = "%s: %d peças \194\183 %d upgrade(s) já (%d brasões) \194\183 faltam %d pra maxar",
+  KEYS_COACH_SPEND_MAXALL = "%s: %d peças \194\183 dá pra maxar tudo agora (%d brasões)",
+  KEYS_COACH_SPEND_LOW = "%s: %d peças \194\183 junte +%d pra 1 upgrade",
+  KEYS_COACH_SPEND_NONE= "Sem brasões para gastar agora \226\128\148 ganhe mais nas chaves",
+  KEYS_COACH_KEYS      = "Chaves: %s  \194\183  %s",
+  KEYS_COACH_KEY_GOAL  = "objetivo: Cofre Mítico",
+  KEYS_COACH_NK_NONE_K = "Mítica 0",
+  KEYS_COACH_NK_NONE_M = "Faça Mítica 0 primeiro (dá Campeão 246); comece o M+ depois",
+  KEYS_COACH_NK_CHAMP_K= "+6/+7",
+  KEYS_COACH_NK_CHAMP_M= "Faça +6/+7 \226\128\148 começa a dropar Herói",
+  KEYS_COACH_NK_HERO_K = "+9/+10",
+  KEYS_COACH_NK_HERO_M = "Faça +9/+10 \226\128\148 dropa Mítico (Cofre 272)",
+  KEYS_COACH_NK_MYTH_K = "+10",
+  KEYS_COACH_NK_MYTH_M = "+10 é o teto \226\128\148 farme brasão Mítico até 289",
+  KEYS_COACH_CAP_WARN  = "Brasão %s quase no cap (%d/%d) \226\128\148 gaste antes do reset",
+  KEYS_COACH_WEAK      = "Foco: %s (%s)",
+  KEYS_COACH_ILVL      = "Seu ilvl: %d / %d (teto da season)",
+  KEYS_COACH_BIS_NONE  = "Marque itens BiS no KeystoneLoot para uma recomendação de dungeon",
+  KEYS_COACH_PRIO_BIS  = "Prioridade (pelos seus BiS)",
+  KEYS_COACH_PRIO_ESS  = "Prioridade (pelos seus essenciais)",
+  KEYS_COACH_PRIO_MORE = "+%d outras dungeons",
+  KEYS_COACH_KL_ON     = "KeystoneLoot detectado \226\128\148 sugestões de BiS ativadas.",
+  KEYS_COACH_KL_OFF    = "Dica: instale o KeystoneLoot e marque seus BiS para liberar sugestões de dungeon.",
 }
 
 local ES = {
@@ -414,6 +477,7 @@ local ES = {
   PVP_NONE           = "Aún sin datos de PvP — entra con este personaje.",
   VIEW_CHARS       = "Personajes",
   VIEW_KEYS        = "Llaves",
+  VIEW_COACH       = "Progreso",
   TRACK_CHAMP      = "Campeón",
   TRACK_HERO       = "Héroe",
   TRACK_MYTH       = "Mítico",
@@ -428,6 +492,36 @@ local ES = {
   KEYS_GUIDE_CAP   = "Tu equipo ya supera todas las recompensas de esta tabla.",
   KEYS_UPGRADE_COST= "Cada mejora cuesta %d blasones/nivel  \194\183  objeto completo (6 niveles) = %d  \194\183  límite %d/semana por tipo.",
   KEYS_UPGRADE_TIP = "+%d da %d %s  \226\137\136  %s mejora",
+  KEYS_COACH_TITLE     = "Qué hacer ahora",
+  KEYS_COACH_GEAR      = "Equipo: %s  \194\183  %d por debajo del máx.",
+  KEYS_COACH_GEAR_NONE = "Equipo: %d piezas equipadas (sin vía de mejora detectada)",
+  KEYS_COACH_CRESTS    = "Blasones: %s",
+  KEYS_COACH_CRESTS_NONE = "Blasones: datos aún no disponibles",
+  KEYS_COACH_CREST_ITEM       = "%s: %d (%d/%d esta semana)",
+  KEYS_COACH_CREST_ITEM_NOWEEK= "%s: %d",
+  KEYS_COACH_SPEND_HAS = "%s: %d piezas \194\183 %d mejora(s) ya (%d blasones) \194\183 faltan %d para maximizar",
+  KEYS_COACH_SPEND_MAXALL = "%s: %d piezas \194\183 puedes maximizar todo ya (%d blasones)",
+  KEYS_COACH_SPEND_LOW = "%s: %d piezas \194\183 reúne +%d para 1 mejora",
+  KEYS_COACH_SPEND_NONE= "Sin blasones para gastar ahora \226\128\148 consigue más en las llaves",
+  KEYS_COACH_KEYS      = "Llaves: %s  \194\183  %s",
+  KEYS_COACH_KEY_GOAL  = "objetivo: Cámara Mítica",
+  KEYS_COACH_NK_NONE_K = "Mítica 0",
+  KEYS_COACH_NK_NONE_M = "Haz Mítica 0 primero (da Campeón 246); empieza M+ después",
+  KEYS_COACH_NK_CHAMP_K= "+6/+7",
+  KEYS_COACH_NK_CHAMP_M= "Haz +6/+7 \226\128\148 empieza a soltar Héroe",
+  KEYS_COACH_NK_HERO_K = "+9/+10",
+  KEYS_COACH_NK_HERO_M = "Haz +9/+10 \226\128\148 suelta Mítico (Cámara 272)",
+  KEYS_COACH_NK_MYTH_K = "+10",
+  KEYS_COACH_NK_MYTH_M = "+10 es el tope \226\128\148 farmea blasón Mítico hasta 289",
+  KEYS_COACH_CAP_WARN  = "Blasón %s casi en el tope (%d/%d) \226\128\148 gasta antes del reinicio",
+  KEYS_COACH_WEAK      = "Enfoque: %s (%s)",
+  KEYS_COACH_ILVL      = "Tu ilvl: %d / %d (tope de temporada)",
+  KEYS_COACH_BIS_NONE  = "Marca objetos BiS en KeystoneLoot para una recomendación de mazmorra",
+  KEYS_COACH_PRIO_BIS  = "Prioridad (por tus BiS)",
+  KEYS_COACH_PRIO_ESS  = "Prioridad (por tus esenciales)",
+  KEYS_COACH_PRIO_MORE = "+%d mazmorras más",
+  KEYS_COACH_KL_ON     = "KeystoneLoot detectado \226\128\148 sugerencias de BiS activadas.",
+  KEYS_COACH_KL_OFF    = "Consejo: instala KeystoneLoot y marca tus BiS para desbloquear sugerencias de mazmorra.",
 }
 
 -- Base EN + overlay do locale do cliente; esMX cai em esES; chave inexistente
@@ -1228,7 +1322,7 @@ end
 
 function KA.SetView(view)
   if not (DB and DB.settings) then return end
-  if view ~= "chars" and view ~= "keys" then view = "chars" end
+  if view ~= "chars" and view ~= "keys" and view ~= "coach" then view = "chars" end
   DB.settings.view = view
   KA.bus:Fire()
 end
@@ -1258,6 +1352,63 @@ KA.KEY_REWARDS = {
 -- `perRank` brasões; um item inteiro (6 níveis) custa `perItem`; o ganho semanal
 -- de cada TIPO de brasão tem teto `weeklyCap`. Usado pelo rodapé da aba Chaves.
 KA.UPGRADE_COST = { perRank = 20, perItem = 120, weeklyCap = 100 }
+
+-- Mapa bonusId -> trilha/rank do item EQUIPADO (Midnight Season 1). Espelha os
+-- bonusIds de upgrade do cliente (os mesmos de KeystoneLoot.UpgradeTracks.dungeon)
+-- para o COACH da aba Chaves ler a trilha de cada peça SEM depender de addon externo.
+--   code: "C" Campeão | "H" Herói | "M" Mítico   ·   rank x/maxRank   ·   ilvl da peça
+-- O coach prefere a tabela viva do KeystoneLoot quando ela existir; este bloco é o
+-- fallback autocontido. EDITE a cada season junto com KEY_REWARDS.
+KA.UPGRADE_BONUS = {
+  -- Campeão (maxRank 6)
+  [12785] = { code = "C", rank = 1, maxRank = 6, ilvl = 246 },
+  [12786] = { code = "C", rank = 2, maxRank = 6, ilvl = 250 },
+  [12787] = { code = "C", rank = 3, maxRank = 6, ilvl = 253 },
+  [12788] = { code = "C", rank = 4, maxRank = 6, ilvl = 256 },
+  [12789] = { code = "C", rank = 5, maxRank = 6, ilvl = 259 },
+  [12790] = { code = "C", rank = 6, maxRank = 6, ilvl = 263 },
+  -- Herói (maxRank 6)
+  [12793] = { code = "H", rank = 1, maxRank = 6, ilvl = 259 },
+  [12794] = { code = "H", rank = 2, maxRank = 6, ilvl = 263 },
+  [12795] = { code = "H", rank = 3, maxRank = 6, ilvl = 266 },
+  [12796] = { code = "H", rank = 4, maxRank = 6, ilvl = 269 },
+  [12797] = { code = "H", rank = 5, maxRank = 6, ilvl = 272 },
+  [12798] = { code = "H", rank = 6, maxRank = 6, ilvl = 276 },
+  -- Mítico (greatvault) (maxRank 6)
+  [12801] = { code = "M", rank = 1, maxRank = 6, ilvl = 272 },
+  [12802] = { code = "M", rank = 2, maxRank = 6, ilvl = 276 },
+  [12803] = { code = "M", rank = 3, maxRank = 6, ilvl = 279 },
+  [12804] = { code = "M", rank = 4, maxRank = 6, ilvl = 282 },
+  [12805] = { code = "M", rank = 5, maxRank = 6, ilvl = 285 },
+  [12806] = { code = "M", rank = 6, maxRank = 6, ilvl = 289 },
+}
+
+-- Teto de ilvl por trilha de upgrade (Midnight S1) e teto geral da season. O coach
+-- (aba Progresso) usa p/ saber se uma peça ainda pode subir e dar contexto ao ilvl
+-- atual ("X / 289"). EDITE a cada season junto com UPGRADE_BONUS/KEY_REWARDS.
+KA.TRACK_CAP_ILVL  = { champion = 263, hero = 276, myth = 289 }
+KA.SEASON_MAX_ILVL = 289
+
+-- Design system compartilhado (estilo inspirado no KeystoneLoot) — tokens visuais
+-- reutilizados por TODAS as abas (Personagens/Chaves/Progresso) p/ consistência.
+-- Apenas APARÊNCIA; nenhuma lógica/dado depende disto.
+KA.STYLE = {
+  bgRow    = { 0, 0, 0, 0.16 },        -- zebra: fundo da linha par
+  divider  = { 1, 1, 1, 0.07 },        -- linha divisória fina entre linhas
+  titlebar = { 0.10, 0.10, 0.10, 1 },  -- titlebar escura
+  card     = { 0, 0, 0, 0.12 },        -- fundo sutil de área (card)
+  tabActive= { 1, 1, 1, 0.06 },        -- realce de fundo da aba ativa
+}
+
+-- Recomendação de chave conforme a trilha PREDOMINANTE do gear (refs Icy Veins /
+-- Wowhead / Method — Midnight S1). keyL/msgL são CHAVES de i18n (resolvidas em L na
+-- UI) p/ manter trilíngue. Faixa de brasão por chave: +2-3 Campeão · +4-8 Herói · +9+ Mítico.
+KA.TRACK_NEXT_KEY = {
+  none     = { keyL = "KEYS_COACH_NK_NONE_K",  msgL = "KEYS_COACH_NK_NONE_M"  },
+  champion = { keyL = "KEYS_COACH_NK_CHAMP_K", msgL = "KEYS_COACH_NK_CHAMP_M" },
+  hero     = { keyL = "KEYS_COACH_NK_HERO_K",  msgL = "KEYS_COACH_NK_HERO_M"  },
+  myth     = { keyL = "KEYS_COACH_NK_MYTH_K",  msgL = "KEYS_COACH_NK_MYTH_M"  },
+}
 
 local function vaultFilledSum(d)
   local v = d.vault

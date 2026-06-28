@@ -58,6 +58,18 @@ local function colored(col, text)
   return "|cff" .. hex(col) .. tostring(text) .. "|r"
 end
 
+-- Design system (KA.STYLE) — leitura defensiva de um token {r,g,b,a} com fallback.
+local function StyleColor(key, fb)
+  local c = (KA.STYLE and KA.STYLE[key]) or fb
+  return c or { 0, 0, 0, 0 }
+end
+-- aplica SetColorTexture numa textura a partir de um token de estilo (defensivo).
+local function ApplyStyleTex(tex, key, fb)
+  if not tex then return end
+  local c = StyleColor(key, fb)
+  tex:SetColorTexture(c[1] or 0, c[2] or 0, c[3] or 0, c[4])
+end
+
 -- Cor de qualidade épica (pips do cofre preenchidos)
 local QC_EPIC = { 0.64, 0.21, 0.93 }
 if GetItemQualityColor then
@@ -334,6 +346,13 @@ local function CreateRow(parent)
   row.bg = row:CreateTexture(nil, "BACKGROUND")
   row.bg:SetAllPoints()
 
+  -- divisória fina no rodapé da linha (design system) — só visual
+  row.divider = row:CreateTexture(nil, "BORDER")
+  row.divider:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 4, 0)
+  row.divider:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -4, 0)
+  row.divider:SetHeight(1)
+  ApplyStyleTex(row.divider, "divider", { 1, 1, 1, 0.07 })
+
   row.hover = row:CreateTexture(nil, "BORDER")
   row.hover:SetAllPoints()
   row.hover:SetColorTexture(1, 1, 1, 0.05)
@@ -498,7 +517,7 @@ local function PopulateRow(row, entry, index)
     row.bg:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 0.12)
     row.accent:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 1); row.accent:Show()
   elseif index % 2 == 0 then
-    row.bg:SetColorTexture(1, 1, 1, 0.02); row.accent:Hide()
+    ApplyStyleTex(row.bg, "bgRow", { 0, 0, 0, 0.16 }); row.accent:Hide() -- zebra
   else
     row.bg:SetColorTexture(0, 0, 0, 0); row.accent:Hide()
   end
@@ -1172,6 +1191,402 @@ local function keyCell(ilvl, tcode, rank, isUp)
   return s
 end
 
+-- ===========================================================================
+-- COACH DE PROGRESSÃO ("O que fazer agora") — helpers da 3ª aba "Progresso".
+-- Lê o gear equipado + brasões (C_CurrencyInfo) + favoritos BiS do KeystoneLoot
+-- (integração OPCIONAL) e gera 3 sugestões acionáveis. 100% defensivo: sem
+-- KeystoneLoot a trilha do gear vem do fallback KA.UPGRADE_BONUS e a sugestão de
+-- BiS degrada com uma dica; nada lança erro. A view fica em BuildCoachView.
+-- ===========================================================================
+-- Slots equipados varridos: cabeça(1)..mão secundária(17); pula camisa(4) e tabardo(19).
+local COACH_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 }
+
+-- Mapa trilha (dungeon) -> código de tier do Alts (C/H/M) + currencyID do brasão.
+-- Os IDs dos Dawncrest são os mesmos do bloco SEASON_CURRENCIES do Core.lua.
+local COACH_TRACKS = {
+  { kl = "champion",   code = "C", crestId = 3343 }, -- Champion Dawncrest
+  { kl = "hero",       code = "H", crestId = 3345 }, -- Hero Dawncrest
+  { kl = "greatvault", code = "M", crestId = 3347 }, -- Myth Dawncrest
+}
+
+-- Ícones das sugestões (escapes de textura; caminho inválido só mostra placeholder,
+-- nunca lança erro Lua). Trocáveis facilmente in-game se algum não renderizar.
+local COACH_ICON_SPEND = "|TInterface\\Icons\\inv_misc_coin_01:14:14:0:0|t"
+local COACH_ICON_KEY   = "|TInterface\\Icons\\inv_misc_key_03:14:14:0:0|t"
+local COACH_ICON_BIS   = "|TInterface\\Icons\\inv_misc_gem_diamond_03:14:14:0:0|t"
+-- ícone de aviso (X vermelho nativo; conhecido-bom) p/ o alerta de cap de brasão
+local COACH_ICON_WARN  = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14:0:0|t"
+
+-- Mapa código de tier (C/H/M) → chave das tabelas KA.TRACK_* (champion/hero/myth).
+local CODE_TO_TRACK = { C = "champion", H = "hero", M = "myth" }
+
+-- Ordem das trilhas (Campeão < Herói < Mítico); 0 p/ desconhecido.
+local function TrackOrder(code)
+  if code == "M" then return 3 end
+  if code == "H" then return 2 end
+  if code == "C" then return 1 end
+  return 0
+end
+
+-- Globais de nome de slot do cliente (já localizadas) por INVSLOT.
+local COACH_SLOT_GLOBAL = {
+  [1] = "HEADSLOT", [2] = "NECKSLOT", [3] = "SHOULDERSLOT", [5] = "CHESTSLOT",
+  [6] = "WAISTSLOT", [7] = "LEGSSLOT", [8] = "FEETSLOT", [9] = "WRISTSLOT",
+  [10] = "HANDSSLOT", [11] = "FINGER0SLOT", [12] = "FINGER1SLOT",
+  [13] = "TRINKET0SLOT", [14] = "TRINKET1SLOT", [15] = "BACKSLOT",
+  [16] = "MAINHANDSLOT", [17] = "SECONDARYHANDSLOT",
+}
+-- Nome localizado do slot (via global do WoW); fallback p/ o número do slot.
+local function SlotName(slot)
+  local g = COACH_SLOT_GLOBAL[slot]
+  local s = g and rawget(_G, g)
+  if type(s) == "string" and s ~= "" then return s end
+  return tostring(slot)
+end
+
+-- KeystoneLoot NÃO expõe a tabela do addon como global na build atual (vem do
+-- vararg `local _, KeystoneLoot = ...`, privada). Buscamos via rawget p/ acender a
+-- integração automaticamente caso uma versão futura a exponha; senão, degrada.
+local function KLAddon()
+  local kl = rawget(_G, "KeystoneLoot")
+  if type(kl) == "table" then return kl end
+  return nil
+end
+
+-- split por ":" preservando campos vazios (p/ parse robusto de itemLink).
+local function SplitColon(s)
+  local t, last = {}, 1
+  while true do
+    local i = string.find(s, ":", last, true)
+    if not i then t[#t + 1] = string.sub(s, last); break end
+    t[#t + 1] = string.sub(s, last, i - 1)
+    last = i + 1
+  end
+  return t
+end
+
+-- Extrai os bonusIds de um itemLink. Layout do item:
+--   item:itemId:ench:g1:g2:g3:g4:suffix:uniq:lvl:spec:mask:ctx:numBonus:b1:b2:...
+-- f[1]=itemId ... f[13]=numBonusIDs ... f[14..]=bonusIDs. Defensivo: nil se não casar.
+local function ExtractBonusIds(itemLink)
+  if type(itemLink) ~= "string" then return nil end
+  local body = string.match(itemLink, "|Hitem:([%-%d:]+)|h")
+    or string.match(itemLink, "item:([%-%d:]+)")
+  if not body then return nil end
+  local f = SplitColon(body)
+  local num = tonumber(f[13])
+  if not num or num <= 0 then return nil end
+  local ids = {}
+  for i = 1, num do
+    local b = tonumber(f[13 + i])
+    if b then ids[#ids + 1] = b end
+  end
+  if #ids == 0 then return nil end
+  return ids
+end
+
+-- Lookup bonusId -> { code, rank, maxRank, ilvl }. Prefere a tabela viva do
+-- KeystoneLoot; senão usa o fallback hardcoded KA.UPGRADE_BONUS (Core.lua).
+local function BuildTrackLookup()
+  local kl = KLAddon()
+  if kl and type(kl.UpgradeTracks) == "table" and type(kl.UpgradeTracks.dungeon) == "table" then
+    local dn = kl.UpgradeTracks.dungeon
+    local lk, any = {}, false
+    for _, t in ipairs(COACH_TRACKS) do
+      local list = dn[t.kl]
+      if type(list) == "table" then
+        local maxRank = #list
+        for rank, entry in ipairs(list) do
+          local b = (type(entry) == "table") and tonumber(entry.bonusId) or nil
+          if b then
+            lk[b] = { code = t.code, rank = rank, maxRank = maxRank, ilvl = entry.ilvl }
+            any = true
+          end
+        end
+      end
+    end
+    if any then return lk end
+  end
+  if type(KA.UPGRADE_BONUS) == "table" then return KA.UPGRADE_BONUS end
+  return nil
+end
+
+-- Uma peça `a` é mais FRACA que `b`? Ordem: menor track, depois menor rank, depois
+-- menor ilvl. Usado p/ o diagnóstico "elo mais fraco" (onde focar primeiro).
+local function WeakerPiece(a, b)
+  if not b then return true end
+  local oa, ob = TrackOrder(a.code), TrackOrder(b.code)
+  if oa ~= ob then return oa < ob end
+  if (a.rank or 0) ~= (b.rank or 0) then return (a.rank or 0) < (b.rank or 0) end
+  return (a.ilvl or 0) < (b.ilvl or 0)
+end
+
+-- Varre o gear equipado e agrega contagem por trilha + peças abaixo do máximo +
+-- guarda a peça mais fraca (res.weak = { slot, code, rank, maxRank, ilvl }).
+local function ScanGear(lookup)
+  local res = {
+    counts  = { C = 0, H = 0, M = 0 },
+    notMax  = { C = 0, H = 0, M = 0 },
+    missing = { C = 0, H = 0, M = 0 }, -- soma de (maxRank-rank) das peças não-maxadas
+    pieces = 0, tracked = 0, weak = nil,
+  }
+  if type(GetInventoryItemLink) ~= "function" then return res end
+  for _, slot in ipairs(COACH_SLOTS) do
+    local ok, link = pcall(GetInventoryItemLink, "player", slot)
+    if ok and type(link) == "string" then
+      res.pieces = res.pieces + 1
+      if lookup then
+        local ids = ExtractBonusIds(link)
+        local m
+        if ids then
+          for _, b in ipairs(ids) do
+            if lookup[b] then m = lookup[b]; break end
+          end
+        end
+        if m and m.code then
+          res.tracked = res.tracked + 1
+          res.counts[m.code] = (res.counts[m.code] or 0) + 1
+          if (m.rank or 0) < (m.maxRank or 0) then
+            res.notMax[m.code] = (res.notMax[m.code] or 0) + 1
+            res.missing[m.code] = (res.missing[m.code] or 0) + ((m.maxRank or 0) - (m.rank or 0)) -- níveis faltantes (× perRank = brasões pra maxar)
+          end
+          local cand = { slot = slot, code = m.code, rank = m.rank or 0,
+                         maxRank = m.maxRank or 6, ilvl = m.ilvl or 0 }
+          if WeakerPiece(cand, res.weak) then res.weak = cand end
+        end
+      end
+    end
+  end
+  return res
+end
+
+-- Info de um brasão (currencyID): quantidade total + progresso do cap SEMANAL.
+-- Os nomes de campo podem variar entre builds; lidos defensivamente. O cap semanal
+-- tem CATCH-UP (acumula), então usa-se o maxWeeklyQuantity REAL da API, não 100 fixo.
+local function CrestInfo(id)
+  if type(id) ~= "number" then return nil end
+  if not (C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo) then return nil end
+  local ok, info = pcall(C_CurrencyInfo.GetCurrencyInfo, id)
+  if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then
+    local weekly    = tonumber(info.quantityEarnedThisWeek)
+    local weeklyMax = tonumber(info.maxWeeklyQuantity)
+    return {
+      qty       = tonumber(info.quantity) or 0,
+      weekly    = weekly,
+      weeklyMax = (weeklyMax and weeklyMax > 0) and weeklyMax or nil,
+    }
+  end
+  return nil
+end
+
+-- specId da spec ATUAL do char. Espelha como o KeystoneLoot resolve a spec
+-- (C_SpecializationInfo), com fallback p/ as globais antigas. nil se indisponível.
+local function CurrentSpecId()
+  local C = C_SpecializationInfo
+  if type(C) == "table" and type(C.GetSpecialization) == "function"
+     and type(C.GetSpecializationInfo) == "function" then
+    local ok, idx = pcall(C.GetSpecialization)
+    if ok and type(idx) == "number" then
+      local ok2, specId = pcall(C.GetSpecializationInfo, idx)
+      if ok2 and type(specId) == "number" and specId > 0 then return specId end
+    end
+  end
+  if type(GetSpecialization) == "function" and type(GetSpecializationInfo) == "function" then
+    local ok, idx = pcall(GetSpecialization)
+    if ok and type(idx) == "number" then
+      local ok2, specId = pcall(GetSpecializationInfo, idx)
+      if ok2 and type(specId) == "number" and specId > 0 then return specId end
+    end
+  end
+  return nil
+end
+
+-- characterKey EXATAMENTE como o KeystoneLoot (character.lua): "realm-nome-classId",
+-- classId = select(3, UnitClass("player")). Usa o char ATUAL (logado). nil se faltar API.
+local function KLCharacterKey()
+  if type(GetRealmName) ~= "function" or type(UnitName) ~= "function"
+     or type(UnitClass) ~= "function" then return nil end
+  local ok1, realm = pcall(GetRealmName)
+  local ok2, name  = pcall(UnitName, "player")
+  local ok3, _, _, classId = pcall(UnitClass, "player")
+  if ok1 and ok2 and ok3 and type(realm) == "string" and realm ~= ""
+     and type(name) == "string" and name ~= "" and type(classId) == "number" then
+    return string.format("%s-%s-%d", realm, name, classId)
+  end
+  return nil
+end
+
+-- Nome localizado da dungeon (challengeModeId). nil se indisponível.
+local function DungeonName(cmId)
+  if C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
+    local ok, name = pcall(C_ChallengeMode.GetMapUIInfo, cmId)
+    if ok and type(name) == "string" and name ~= "" then return name end
+  end
+  return nil
+end
+
+-- Ícone da dungeon (4º retorno de GetMapUIInfo: texture). nil se indisponível.
+local function DungeonIcon(cmId)
+  if C_ChallengeMode and C_ChallengeMode.GetMapUIInfo then
+    local ok, _, _, _, texture = pcall(C_ChallengeMode.GetMapUIInfo, cmId)
+    if ok and texture then return texture end
+  end
+  return nil
+end
+
+-- Ícone (fileID) de um item — via GetItemInfoInstant (SÍNCRONO, sem cache). Fallback
+-- p/ o ponto de interrogação. Não precisa de async (só a qualidade/nome precisam).
+local function ItemIcon(itemId)
+  local gi = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+  if type(gi) == "function" then
+    local ok, _, _, _, _, icon = pcall(gi, itemId)
+    if ok and icon then return icon end
+  end
+  return 134400 -- Interface\Icons\INV_Misc_QuestionMark
+end
+
+-- Cor de qualidade de item (tabela {r,g,b}). Fallback neutro.
+local function QualityColor(q)
+  if type(q) ~= "number" then return COLOR_NEUTRAL end
+  if C_Item and C_Item.GetItemQualityColor then
+    local ok, r, g, b = pcall(C_Item.GetItemQualityColor, q)
+    if ok and type(r) == "number" then return { r, g, b } end
+  end
+  if ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[q] and ITEM_QUALITY_COLORS[q].r then
+    local c = ITEM_QUALITY_COLORS[q]
+    return { c.r, c.g, c.b }
+  end
+  return COLOR_NEUTRAL
+end
+
+-- Nome do item + cor de qualidade. Se ainda não cacheado, pede o carregamento
+-- (aparece no próximo refresh, disparado por ITEM_DATA_LOAD_RESULT) e retorna nil.
+local function ItemName(itemId)
+  if type(itemId) ~= "number" then return nil end
+  local getInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+  if type(getInfo) == "function" then
+    local ok, name, _, quality = pcall(getInfo, itemId)
+    if ok and type(name) == "string" and name ~= "" then
+      return name, QualityColor(quality)
+    end
+  end
+  if C_Item and C_Item.RequestLoadItemDataByID then
+    pcall(C_Item.RequestLoadItemDataByID, itemId)
+  end
+  return nil
+end
+
+-- LISTA de dungeons priorizadas pelos favoritos da spec atual, p/ a mini-tabela.
+-- Prioriza BiS (tier 3); se NÃO houver nenhum BiS em dungeon alguma, faz FALLBACK
+-- pra "essenciais" (tier 2 = Must have). Retorna (rows, tierUsed):
+--   rows = { { sourceId, name, count, items = { itemId, ... } }, ... } ordenado por
+--   count DESC (desempate por nome); tierUsed = 3 (BiS) ou 2 (essenciais). nil = degrada.
+-- Caminho PRINCIPAL: SavedVariable GLOBAL `KeystoneLootDB.favorites`. sourceId de
+-- dungeon = challengeModeId (tem nome via GetMapUIInfo); raid/catalyst/custom são
+-- PULADOS. Fallback secundário: namespace privado, se uma build futura o expuser.
+local function BisDungeonPriority(specId)
+  if not specId then return nil end
+
+  local rows3, rows2 = {}, {}
+
+  -- 1) SavedVariable global (caminho principal)
+  local db = rawget(_G, "KeystoneLootDB")
+  local handled = false
+  if type(db) == "table" and type(db.favorites) == "table" then
+    local key  = KLCharacterKey()
+    local favs = key and db.favorites[key] or nil
+    if type(favs) == "table" then
+      handled = true
+      for sourceId, specMap in pairs(favs) do
+        if type(specMap) == "table" and type(specMap[specId]) == "table" then
+          local name = DungeonName(sourceId)
+          if name then
+            local i3, i2 = {}, {}
+            for itemId, info in pairs(specMap[specId]) do
+              local id = tonumber(itemId)
+              if id and type(info) == "table" then
+                if info.tier == 3 then i3[#i3 + 1] = id
+                elseif info.tier == 2 then i2[#i2 + 1] = id end
+              end
+            end
+            if #i3 > 0 then rows3[#rows3 + 1] = { sourceId = sourceId, name = name, items = i3 } end
+            if #i2 > 0 then rows2[#rows2 + 1] = { sourceId = sourceId, name = name, items = i2 } end
+          end
+        end
+      end
+    end
+  end
+
+  -- 2) Fallback: namespace privado (só se exposto por uma versão futura)
+  if not handled then
+    local kl = KLAddon()
+    if kl and type(kl.Favorites) == "table" and type(kl.DungeonDatabase) == "table"
+       and type(kl.Favorites.GetList) == "function" and type(kl.Favorites.GetTier) == "function" then
+      local Fav = kl.Favorites
+      for _, dungeon in ipairs(kl.DungeonDatabase) do
+        local cmId = (type(dungeon) == "table") and dungeon.challengeModeId or nil
+        if cmId then
+          local name = DungeonName(cmId)
+          if name then
+            local i3, i2 = {}, {}
+            local ok, list = pcall(Fav.GetList, Fav, cmId, specId)
+            if ok and type(list) == "table" then
+              for _, entry in ipairs(list) do
+                local id = (type(entry) == "table") and tonumber(entry.itemId) or nil
+                if id then
+                  local ok2, tier = pcall(Fav.GetTier, Fav, id, specId)
+                  if ok2 and tier == 3 then i3[#i3 + 1] = id
+                  elseif ok2 and tier == 2 then i2[#i2 + 1] = id end
+                end
+              end
+            end
+            if #i3 > 0 then rows3[#rows3 + 1] = { sourceId = cmId, name = name, items = i3 } end
+            if #i2 > 0 then rows2[#rows2 + 1] = { sourceId = cmId, name = name, items = i2 } end
+          end
+        end
+      end
+    end
+  end
+
+  -- escolhe BiS se houver qualquer; senão essenciais (tier 2)
+  local rows, tier
+  if #rows3 > 0 then rows, tier = rows3, 3
+  elseif #rows2 > 0 then rows, tier = rows2, 2
+  else return nil end
+
+  for _, r in ipairs(rows) do r.count = #r.items end
+  table.sort(rows, function(a, b)
+    if a.count ~= b.count then return a.count > b.count end
+    return (a.name or "") < (b.name or "") -- desempate estável por nome
+  end)
+  return rows, tier
+end
+
+-- Monta "N Campeão  ·  N Herói  ·  N Mítico" colorindo cada token pela trilha.
+-- includeZero=true mantém tracks com valor 0 (usado na linha de brasões).
+local function TrackBreakdown(getN, includeZero)
+  local parts = {}
+  for _, t in ipairs(COACH_TRACKS) do
+    local n = getN(t.code)
+    if type(n) == "number" and (n > 0 or includeZero) then
+      local col = TRACK_TIER_COLOR[t.code] or COLOR_NEUTRAL
+      parts[#parts + 1] = colored(col, n .. " " .. TrackName(t.code))
+    end
+  end
+  return table.concat(parts, "  \194\183  ")
+end
+
+-- Trilha PREDOMINANTE do gear (mais peças). Empate: a MENOR trilha (pra mirar mais
+-- alto). nil se nenhuma peça rastreada.
+local function PredominantTrack(gear)
+  local best, bestN
+  for _, code in ipairs({ "C", "H", "M" }) do -- ordem crescente → empate fica no menor
+    local n = (gear and gear.counts and gear.counts[code]) or 0
+    if n > 0 and (not bestN or n > bestN) then bestN = n; best = code end
+  end
+  return best
+end
+
 local function BuildKeysView(parent)
   local kv = CreateFrame("Frame", nil, parent)
   kv:SetPoint("TOPLEFT", parent, "TOPLEFT", 1, -(TOP_TITLE + 1))
@@ -1226,6 +1641,12 @@ local function BuildKeysView(parent)
     r:SetPoint("RIGHT", headerBar, "RIGHT", 0, 0)
     r.bg = r:CreateTexture(nil, "BACKGROUND")
     r.bg:SetAllPoints()
+    -- divisória fina (design system) — só visual
+    r.divider = r:CreateTexture(nil, "BORDER")
+    r.divider:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 4, 0)
+    r.divider:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", -4, 0)
+    r.divider:SetHeight(1)
+    ApplyStyleTex(r.divider, "divider", { 1, 1, 1, 0.07 })
     r.accent = r:CreateTexture(nil, "ARTWORK")
     r.accent:SetPoint("TOPLEFT", r, "TOPLEFT", 0, 0)
     r.accent:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 0, 0)
@@ -1295,11 +1716,11 @@ local function BuildKeysView(parent)
         local vaultJump = prev and (prev.vaultT ~= dRow.vaultT) or false
         local isJump = crestJump or vaultJump
 
-        -- fundo: alterna; realça as linhas de "salto" de tier
+        -- fundo: alterna (zebra do design system); realça as linhas de "salto" de tier
         if isJump then
           r.bg:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 0.07)
         elseif i % 2 == 0 then
-          r.bg:SetColorTexture(1, 1, 1, 0.02)
+          ApplyStyleTex(r.bg, "bgRow", { 0, 0, 0, 0.16 })
         else
           r.bg:SetColorTexture(0, 0, 0, 0)
         end
@@ -1338,6 +1759,434 @@ local function BuildKeysView(parent)
   return kv
 end
 
+-- ===========================================================================
+-- VIEW "PROGRESSO" (coach) — 3ª aba. Renderiza o coach numa frame própria (gear,
+-- brasões com cap semanal, 3 sugestões). Lógica idêntica ao que seria embutido na
+-- aba Chaves; aqui isolada. Sem dependência rígida do KeystoneLoot.
+-- ===========================================================================
+local function BuildCoachView(parent)
+  local cv = CreateFrame("Frame", nil, parent)
+  cv:SetPoint("TOPLEFT", parent, "TOPLEFT", 1, -(TOP_TITLE + 1))
+  cv:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -1, 1)
+  cv:Hide()
+
+  -- fundo "card" sutil (escurece levemente a área do coach p/ dar profundidade)
+  local cardBg = cv:CreateTexture(nil, "BACKGROUND")
+  cardBg:SetAllPoints()
+  cardBg:SetColorTexture(0, 0, 0, 0.12)
+
+  -- título (esquerda) + ilvl do char (direita) — espelha o cabeçalho da aba Chaves
+  local title = cv:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  title:SetPoint("TOPLEFT", cv, "TOPLEFT", 16, -12)
+  title:SetText(L.KEYS_COACH_TITLE)
+  title:SetTextColor(ACCENT[1], ACCENT[2], ACCENT[3])
+
+  local ilvlFS = cv:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  ilvlFS:SetPoint("TOPRIGHT", cv, "TOPRIGHT", -16, -14)
+  ilvlFS:SetJustifyH("RIGHT"); ilvlFS:SetWordWrap(false)
+  cv.ilvlFS = ilvlFS
+
+  -- linha Gear + linha Brasões (resumo)
+  local gearFS = cv:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  gearFS:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -14)
+  gearFS:SetPoint("RIGHT", cv, "RIGHT", -16, 0)
+  gearFS:SetJustifyH("LEFT"); gearFS:SetWordWrap(true)
+  cv.gearFS = gearFS
+
+  local crestFS = cv:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  crestFS:SetPoint("TOPLEFT", gearFS, "BOTTOMLEFT", 0, -8)
+  crestFS:SetPoint("RIGHT", cv, "RIGHT", -16, 0)
+  crestFS:SetJustifyH("LEFT"); crestFS:SetWordWrap(true)
+  cv.crestFS = crestFS
+
+  -- aviso de cap de brasão (vazio quando nenhum está perto do teto semanal)
+  local capWarn = cv:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  capWarn:SetPoint("TOPLEFT", crestFS, "BOTTOMLEFT", 0, -6)
+  capWarn:SetPoint("RIGHT", cv, "RIGHT", -16, 0)
+  capWarn:SetJustifyH("LEFT"); capWarn:SetWordWrap(true)
+  cv.capWarn = capWarn
+
+  -- diagnóstico "elo mais fraco" (onde focar primeiro); vazio sem gear rastreado
+  local weakFS = cv:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  weakFS:SetPoint("TOPLEFT", capWarn, "BOTTOMLEFT", 0, -6)
+  weakFS:SetPoint("RIGHT", cv, "RIGHT", -16, 0)
+  weakFS:SetJustifyH("LEFT"); weakFS:SetWordWrap(false)
+  cv.weakFS = weakFS
+
+  -- separador sutil antes das sugestões
+  local sep = cv:CreateTexture(nil, "ARTWORK")
+  sep:SetPoint("TOPLEFT", weakFS, "BOTTOMLEFT", 0, -10)
+  sep:SetPoint("RIGHT", cv, "RIGHT", -16, 0)
+  sep:SetHeight(1)
+  sep:SetColorTexture(1, 1, 1, 0.08)
+
+  -- SUG1 "GASTAR BRASÕES": até 3 linhas (uma por track com peças). Reservadas fixas
+  -- p/ a sug2 ancorar estável; preenchidas/vazias no refresh.
+  cv.spend = {}
+  do
+    local anchor, gap = sep, -12
+    for i = 1, 3 do
+      local fs = cv:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+      fs:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, gap)
+      fs:SetPoint("RIGHT", cv, "RIGHT", -16, 0)
+      fs:SetJustifyH("LEFT"); fs:SetWordWrap(false)
+      cv.spend[i] = fs
+      anchor, gap = fs, -3
+    end
+  end
+
+  -- SUG2 "QUAL CHAVE": uma linha, abaixo das 3 de brasões
+  cv.sug2 = cv:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  cv.sug2:SetPoint("TOPLEFT", cv.spend[3], "BOTTOMLEFT", 0, -8)
+  cv.sug2:SetPoint("RIGHT", cv, "RIGHT", -16, 0)
+  cv.sug2:SetJustifyH("LEFT"); cv.sug2:SetWordWrap(true)
+
+  -- rodapé: nota da integração opcional com o KeystoneLoot (criado antes p/ a área de
+  -- prioridade se estender até logo acima dele)
+  local foot = cv:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  foot:SetPoint("BOTTOMLEFT", cv, "BOTTOMLEFT", 16, 10)
+  foot:SetPoint("RIGHT", cv, "RIGHT", -16, 0)
+  foot:SetJustifyH("LEFT"); foot:SetWordWrap(true)
+  cv.foot = foot
+
+  -- cabeçalho da tabela de prioridade de dungeons (texto muda BiS/essenciais)
+  local priHeader = cv:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  priHeader:SetPoint("TOPLEFT", cv.sug2, "BOTTOMLEFT", 0, -12)
+  priHeader:SetPoint("RIGHT", cv, "RIGHT", -16, 0)
+  priHeader:SetJustifyH("LEFT"); priHeader:SetWordWrap(false)
+  priHeader:SetTextColor(ACCENT[1], ACCENT[2], ACCENT[3])
+  cv.priHeader = priHeader
+
+  -- área rolável: 1 BLOCO por dungeon (ícone + nome + count + itens como ícones)
+  local priScroll = CreateFrame("ScrollFrame", nil, cv)
+  priScroll:SetPoint("TOPLEFT", priHeader, "BOTTOMLEFT", 0, -4)
+  priScroll:SetPoint("RIGHT", cv, "RIGHT", -24, 0)
+  priScroll:SetPoint("BOTTOM", foot, "TOP", 0, 6)
+  priScroll:EnableMouseWheel(true)
+  priScroll:SetScript("OnMouseWheel", function(self, delta)
+    local cur  = self:GetVerticalScroll() or 0
+    local maxs = self:GetVerticalScrollRange() or 0
+    local new  = cur - (delta or 0) * 30
+    if new < 0 then new = 0 elseif new > maxs then new = maxs end
+    self:SetVerticalScroll(new)
+  end)
+  cv.priScroll = priScroll
+
+  local PRI_W = FRAME_W - 64
+  local priChild = CreateFrame("Frame", nil, priScroll)
+  priChild:SetSize(PRI_W, 1)
+  priScroll:SetScrollChild(priChild)
+  cv.priChild = priChild
+  cv.priWidth = PRI_W
+  cv.priBlocks = {}
+
+  -- botão-ícone de item (pool dentro de um bloco). Borda Quickslot2 + moldura de
+  -- qualidade + estrela de tier; tooltip via SetItemByID. Defensivo.
+  local function getItemBtn(block, j)
+    local btn = block.items[j]
+    if not btn then
+      btn = CreateFrame("Button", nil, block)
+      btn:SetSize(34, 34)
+      btn.icon = btn:CreateTexture(nil, "ARTWORK")
+      btn.icon:SetSize(28, 28); btn.icon:SetPoint("CENTER")
+      btn.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+      btn.qual = btn:CreateTexture(nil, "OVERLAY", nil, 1)
+      btn.qual:SetTexture("Interface\\Common\\WhiteIconFrame")
+      btn.qual:SetSize(34, 34); btn.qual:SetPoint("CENTER")
+      btn.border = btn:CreateTexture(nil, "OVERLAY", nil, 2)
+      btn.border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+      btn.border:SetSize(52, 52); btn.border:SetPoint("CENTER", 0, -1)
+      btn.star = btn:CreateTexture(nil, "OVERLAY", nil, 3)
+      btn.star:SetTexture("Interface\\Common\\ReputationStar")
+      btn.star:SetPoint("TOPRIGHT", btn, "TOPRIGHT", 4, 4)
+      btn:SetScript("OnEnter", function(self)
+        if not self.itemId then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        pcall(GameTooltip.SetItemByID, GameTooltip, self.itemId)
+        GameTooltip:Show()
+      end)
+      btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      block.items[j] = btn
+    end
+    return btn
+  end
+
+  -- bloco (linha) de uma dungeon (pool). Cresce conforme os itens (wrap horizontal).
+  local function getBlock(i)
+    local b = cv.priBlocks[i]
+    if not b then
+      b = CreateFrame("Frame", nil, priChild)
+      b:SetPoint("LEFT", priChild, "LEFT", 0, 0)
+      b:SetPoint("RIGHT", priChild, "RIGHT", 0, 0)
+      b.zebra = b:CreateTexture(nil, "BACKGROUND")
+      b.zebra:SetAllPoints()
+      b.icon = b:CreateTexture(nil, "ARTWORK")
+      b.icon:SetSize(24, 24); b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 6, -5)
+      b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+      b.name = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+      b.name:SetPoint("LEFT", b.icon, "RIGHT", 8, 0)
+      b.name:SetJustifyH("LEFT"); b.name:SetWordWrap(false)
+      b.divider = b:CreateTexture(nil, "ARTWORK")
+      b.divider:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 4, 0)
+      b.divider:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -4, 0)
+      b.divider:SetHeight(1); b.divider:SetColorTexture(1, 1, 1, 0.10)
+      b.items = {}
+      cv.priBlocks[i] = b
+    end
+    return b
+  end
+  cv.getItemBtn = getItemBtn
+  cv.getBlock   = getBlock
+
+  -- estado vazio + "+N outras" (FontStrings reaproveitadas)
+  cv.priEmpty = priChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  cv.priEmpty:SetPoint("TOPLEFT", priChild, "TOPLEFT", 2, -2)
+  cv.priEmpty:SetJustifyH("LEFT"); cv.priEmpty:SetWordWrap(true)
+  cv.priEmpty:SetWidth(PRI_W - 8); cv.priEmpty:Hide()
+
+  cv.priMore = priChild:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  cv.priMore:SetJustifyH("LEFT"); cv.priMore:SetWordWrap(false)
+  cv.priMore:Hide()
+
+  -- (re)calcula tudo do char logado: gear equipado, brasões, sugestões, prioridade.
+  cv.refresh = function()
+    local ilvl    = PlayerEquippedIlvl()
+    local uc      = KA.UPGRADE_COST or { perRank = 20 }
+    local perRank = uc.perRank or 20
+    local data    = KA.KEY_REWARDS or {}
+
+    -- cabeçalho: "Seu ilvl: X / 289 (teto da season)"
+    local seasonMax = KA.SEASON_MAX_ILVL or 289
+    if ilvl then
+      cv.ilvlFS:SetText(colored(COLOR_NEUTRAL,
+        string.format(L.KEYS_COACH_ILVL, ilvl, seasonMax)))
+    else
+      local lbl = (L.KEYS_COACH_ILVL:gsub("%%d", "%%s", 1))
+      cv.ilvlFS:SetText(colored(COLOR_MISSING, string.format(lbl, L.NONE, seasonMax)))
+    end
+
+    local lookup = BuildTrackLookup()
+    local gear   = ScanGear(lookup)
+
+    -- linha Gear: contagem por trilha (coloridas) + nº de peças abaixo do máximo
+    if lookup and gear.tracked > 0 then
+      local breakdown = TrackBreakdown(function(code) return gear.counts[code] end, false)
+      local notMaxTotal = (gear.notMax.C or 0) + (gear.notMax.H or 0) + (gear.notMax.M or 0)
+      cv.gearFS:SetText(string.format(L.KEYS_COACH_GEAR, breakdown, notMaxTotal))
+    else
+      cv.gearFS:SetText(colored(COLOR_NEUTRAL,
+        string.format(L.KEYS_COACH_GEAR_NONE, gear.pieces)))
+    end
+
+    -- DIAGNÓSTICO "elo mais fraco": onde focar primeiro (peça de menor track/rank/ilvl)
+    if gear.weak then
+      local w   = gear.weak
+      local col = TRACK_TIER_COLOR[w.code] or COLOR_NEUTRAL
+      local info = colored(col, string.format("%s %d/%d", TrackName(w.code), w.rank or 0, w.maxRank or 6))
+      cv.weakFS:SetText(string.format(L.KEYS_COACH_WEAK, SlotName(w.slot), info))
+    else
+      cv.weakFS:SetText("")
+    end
+
+    -- linha Brasões: quantidade por tier + progresso do cap SEMANAL real (catch-up)
+    local crest = {}
+    local haveCrest = false
+    for _, t in ipairs(COACH_TRACKS) do
+      local ci = CrestInfo(t.crestId)
+      crest[t.code] = ci
+      if ci then haveCrest = true end
+    end
+    if haveCrest then
+      local tokens = {}
+      for _, t in ipairs(COACH_TRACKS) do
+        local ci   = crest[t.code]
+        local col  = TRACK_TIER_COLOR[t.code] or COLOR_NEUTRAL
+        local name = TrackName(t.code)
+        local txt
+        if ci and ci.weekly ~= nil and ci.weeklyMax then
+          txt = string.format(L.KEYS_COACH_CREST_ITEM, name, ci.qty, ci.weekly, ci.weeklyMax)
+        elseif ci then
+          txt = string.format(L.KEYS_COACH_CREST_ITEM_NOWEEK, name, ci.qty)
+        else
+          txt = string.format(L.KEYS_COACH_CREST_ITEM_NOWEEK, name, 0)
+        end
+        tokens[#tokens + 1] = colored(col, txt)
+      end
+      cv.crestFS:SetText(string.format(L.KEYS_COACH_CRESTS,
+        table.concat(tokens, "  \194\183  ")))
+    else
+      cv.crestFS:SetText(colored(COLOR_MISSING, L.KEYS_COACH_CRESTS_NONE))
+    end
+
+    -- AVISO DE CAP: se algum brasão passou de 85% do cap semanal, avisa p/ gastar
+    -- antes do reset. Mostra o tier MAIS ALTO perto do cap. Vazio se nenhum.
+    local warnTxt
+    for i = #COACH_TRACKS, 1, -1 do
+      local t  = COACH_TRACKS[i]
+      local ci = crest[t.code]
+      if ci and ci.weekly and ci.weeklyMax and ci.weeklyMax > 0
+         and ci.weekly >= ci.weeklyMax * 0.85 then
+        warnTxt = colored(TRACK_TIER_COLOR[t.code] or COLOR_ACTION,
+          string.format(L.KEYS_COACH_CAP_WARN, TrackName(t.code), ci.weekly, ci.weeklyMax))
+        break
+      end
+    end
+    cv.capWarn:SetText(warnTxt and (COACH_ICON_WARN .. " " .. warnTxt) or "")
+
+    -- (a) GASTAR BRASÕES: uma linha por track com peças (Mítico > Herói > Campeão).
+    -- N = peças não-maxadas; faltam (níveis*perRank) p/ maxar; X = brasões do tier.
+    -- X>=perRank → upgrades já + faltam (destaque); X<perRank → "junte +(perRank-X)".
+    local slot = 0
+    for i = #COACH_TRACKS, 1, -1 do -- Mítico primeiro (prioridade visual ao tier alto)
+      local t  = COACH_TRACKS[i]
+      local nm = gear.notMax[t.code] or 0
+      if lookup and nm > 0 and slot < 3 then
+        slot = slot + 1
+        local fs   = cv.spend[slot]
+        local ci   = crest[t.code]
+        local x    = (ci and ci.qty) or 0
+        local need = (gear.missing[t.code] or 0) * perRank -- brasões pra maxar o track
+        local col  = TRACK_TIER_COLOR[t.code] or COLOR_ACTION
+        local name = TrackName(t.code)
+        local txt
+        if x >= perRank then
+          local upg  = math.floor(x / perRank)
+          local left = need - x
+          if left > 0 then
+            txt = COACH_ICON_SPEND .. " " .. colored(col,
+              string.format(L.KEYS_COACH_SPEND_HAS, name, nm, upg, x, left))
+          else
+            txt = COACH_ICON_SPEND .. " " .. colored(col,
+              string.format(L.KEYS_COACH_SPEND_MAXALL, name, nm, x))
+          end
+        else
+          txt = colored(COLOR_NEUTRAL,
+            string.format(L.KEYS_COACH_SPEND_LOW, name, nm, perRank - x))
+        end
+        fs:SetText(txt)
+        fs:Show()
+      end
+    end
+    if slot == 0 then -- nenhum track com peças não-maxadas
+      cv.spend[1]:SetText(COACH_ICON_SPEND .. " " ..
+        colored(COLOR_NEUTRAL, L.KEYS_COACH_SPEND_NONE))
+      cv.spend[1]:Show()
+      slot = 1
+    end
+    for k = slot + 1, 3 do cv.spend[k]:SetText(""); cv.spend[k]:Hide() end
+
+    -- (b) QUAL CHAVE — recomendação CONTEXTUAL ao track predominante do gear
+    -- (KA.TRACK_NEXT_KEY) + objetivo fixo +10 (Cofre Mítico). Sem gear rastreado →
+    -- 'none' (começar por Mítica 0). Não depende de ilvl.
+    local pred = PredominantTrack(gear) -- "C"/"H"/"M" ou nil
+    local trackName = (pred and CODE_TO_TRACK[pred]) or "none"
+    local nk = (KA.TRACK_NEXT_KEY or {})[trackName] or (KA.TRACK_NEXT_KEY or {}).none
+    local recTok
+    if nk then
+      local col = TRACK_TIER_COLOR[pred] or COLOR_ACTION
+      recTok = colored(col, L[nk.keyL]) .. " \226\128\148 " .. colored(COLOR_NEUTRAL, L[nk.msgL])
+    else
+      recTok = colored(COLOR_NEUTRAL, "?")
+    end
+    local goalTok = colored(TRACK_TIER_COLOR.M or COLOR_ACTION, "+10")
+      .. " " .. colored(COLOR_MISSING, "(" .. L.KEYS_COACH_KEY_GOAL .. ")")
+    cv.sug2:SetText(COACH_ICON_KEY .. " " ..
+      string.format(L.KEYS_COACH_KEYS, recTok, goalTok))
+
+    -- (c) PRIORIDADE DE DUNGEONS (mini-tabela em árvore: dungeon + itens favoritados).
+    -- Prioriza BiS (tier 3); fallback p/ essenciais (tier 2). Limita às top dungeons
+    -- (o resto vira "+N outras") e usa o scroll p/ o overflow vertical.
+    local prio, prioTier = BisDungeonPriority(CurrentSpecId())
+    cv.priHeader:SetText(COACH_ICON_BIS .. " " ..
+      ((prioTier == 2) and L.KEYS_COACH_PRIO_ESS or L.KEYS_COACH_PRIO_BIS))
+
+    local MAX_DUNGEONS = 6 -- teto de dungeons; resto vira "+N outras"
+    local HEADER_H, BTN, GAP, PAD = 24, 34, 10, 6
+    local W = cv.priWidth or (FRAME_W - 64)
+    local perRow = math.max(1, math.floor((W - 2 * PAD + GAP) / (BTN + GAP)))
+    local bi, y = 0, 0
+
+    if prio and #prio > 0 then
+      cv.priEmpty:Hide()
+      local shown = math.min(#prio, MAX_DUNGEONS)
+      for d = 1, shown do
+        local dg = prio[d]
+        bi = bi + 1
+        local b = cv.getBlock(bi)
+
+        -- ícone + nome + count da dungeon
+        local tex = DungeonIcon(dg.sourceId)
+        if tex then b.icon:SetTexture(tex); b.icon:Show() else b.icon:Hide() end
+        b.name:SetText(string.format("%s  \194\183  %d", dg.name or "?", dg.count or 0))
+
+        -- itens como ícones (wrap horizontal)
+        local items = dg.items or {}
+        local rows  = math.max(1, math.ceil(#items / perRow))
+        for j, itemId in ipairs(items) do
+          local btn = cv.getItemBtn(b, j)
+          btn.itemId = itemId
+          btn.icon:SetTexture(ItemIcon(itemId))
+          local _, qcol = ItemName(itemId)
+          local c = qcol or COLOR_NEUTRAL
+          btn.qual:SetVertexColor(c[1], c[2], c[3])
+          if prioTier == 2 then -- essencial: estrela prata, menor
+            btn.star:SetVertexColor(0.75, 0.75, 0.78); btn.star:SetSize(14, 14)
+          else                  -- BiS: estrela dourada
+            btn.star:SetVertexColor(1.0, 0.82, 0.0); btn.star:SetSize(18, 18)
+          end
+          local col = (j - 1) % perRow
+          local row = math.floor((j - 1) / perRow)
+          btn:ClearAllPoints()
+          btn:SetPoint("TOPLEFT", b, "TOPLEFT",
+            PAD + col * (BTN + GAP), -(HEADER_H + row * (BTN + GAP)))
+          btn:Show()
+        end
+        for k = #items + 1, #b.items do b.items[k]:Hide(); b.items[k].itemId = nil end
+
+        local bh = HEADER_H + rows * BTN + (rows - 1) * GAP + PAD
+        b:SetHeight(bh)
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", cv.priChild, "TOPLEFT", 0, -y)
+        b:SetPoint("RIGHT", cv.priChild, "RIGHT", 0, 0)
+        b.zebra:SetColorTexture(0, 0, 0, (d % 2 == 0) and 0.16 or 0.0)
+        b.divider:Show()
+        b:Show()
+        y = y + bh
+      end
+      for k = bi + 1, #cv.priBlocks do cv.priBlocks[k]:Hide() end
+
+      if #prio > shown then
+        cv.priMore:ClearAllPoints()
+        cv.priMore:SetPoint("TOPLEFT", cv.priChild, "TOPLEFT", PAD, -(y + 2))
+        cv.priMore:SetText(colored(COLOR_NEUTRAL,
+          string.format(L.KEYS_COACH_PRIO_MORE, #prio - shown)))
+        cv.priMore:Show()
+        y = y + 16
+      else
+        cv.priMore:Hide()
+      end
+    else
+      for k = 1, #cv.priBlocks do cv.priBlocks[k]:Hide() end
+      cv.priMore:Hide()
+      cv.priEmpty:SetText(colored(COLOR_NEUTRAL, L.KEYS_COACH_BIS_NONE))
+      cv.priEmpty:Show()
+      y = 20
+    end
+
+    cv.priChild:SetHeight(math.max(y, 1))
+    if cv.priScroll then cv.priScroll:SetVerticalScroll(0) end
+
+    -- rodapé: integração ATIVA quando lemos prioridade da spec atual; senão, convite.
+    if prio and #prio > 0 then
+      cv.foot:SetText(L.KEYS_COACH_KL_ON)
+    else
+      cv.foot:SetText(L.KEYS_COACH_KL_OFF)
+    end
+  end
+
+  return cv
+end
+
 -- ---------------------------------------------------------------------------
 -- Posição persistida
 -- ---------------------------------------------------------------------------
@@ -1359,24 +2208,45 @@ local function ApplyPosition(self)
 end
 
 -- ---------------------------------------------------------------------------
--- Alterna a view (Personagens ↔ Chaves) sem resíduo: esconde os widgets da
--- tabela de personagens e mostra a view de recompensas (ou o inverso). Em
--- "chars" repassa pro Refresh normal; em "keys" repinta a tabela de chaves.
+-- Alterna entre as 3 views (Personagens | Chaves | Progresso) sem resíduo:
+-- esconde os widgets das outras e mostra só a escolhida. "chars" repassa pro
+-- Refresh normal; "keys" repinta a tabela de recompensas; "coach" recalcula o
+-- painel de progresso. No modo só-PvP, "keys"/"coach" caem de volta pra "chars".
 -- ---------------------------------------------------------------------------
 ApplyView = function()
   if not frame then return end
-  local keys = (((KA.GetView and KA.GetView()) or "chars") == "keys")
-  if frame.summary     then frame.summary:SetShown(not keys) end
-  if frame.groupBtn    then frame.groupBtn:SetShown(not keys) end
-  if frame.hideCb      then frame.hideCb:SetShown(not keys) end
-  if frame.hideCbLabel then frame.hideCbLabel:SetShown(not keys) end
-  if frame.headerBar   then frame.headerBar:SetShown(not keys) end
-  if frame.scroll      then frame.scroll:SetShown(not keys) end
+  local mode = (KA.GetMode and KA.GetMode()) or "pve"
+  local view = (KA.GetView and KA.GetView()) or "chars"
+  -- modo SÓ-PvP: as abas "Chaves" e "Progresso" ficam escondidas (M+ não faz
+  -- sentido p/ PvP puro); se a view ativa era uma delas, volta pra "chars" pra
+  -- não prender numa aba oculta.
+  if mode == "pvp" and (view == "keys" or view == "coach") then
+    -- KA.SetView dispara o bus → ApplyView reentra (se a janela está visível) já
+    -- como "chars" e renderiza tudo; saímos aqui p/ não rodar Refresh() duas vezes.
+    if KA.SetView then
+      KA.SetView("chars")
+      if frame:IsShown() then return end -- janela VISÍVEL: o bus já reentrou e renderizou "chars"; evita Refresh() duplo
+    end
+    view = "chars" -- janela OCULTA (ou sem setter): renderiza chars nesta mesma passada (sem depender do bus)
+  end
+  local keys  = (view == "keys")
+  local coach = (view == "coach")
+  local chars = not (keys or coach)
+  if frame.summary     then frame.summary:SetShown(chars) end
+  if frame.groupBtn    then frame.groupBtn:SetShown(chars) end
+  if frame.hideCb      then frame.hideCb:SetShown(chars) end
+  if frame.hideCbLabel then frame.hideCbLabel:SetShown(chars) end
+  if frame.headerBar   then frame.headerBar:SetShown(chars) end
+  if frame.scroll      then frame.scroll:SetShown(chars) end
   if frame.keysView    then frame.keysView:SetShown(keys) end
+  if frame.coachView   then frame.coachView:SetShown(coach) end
   if frame.paintView   then frame.paintView() end
   if keys then
     if frame.empty then frame.empty:Hide() end
     if frame.keysView and frame.keysView.refresh then frame.keysView.refresh() end
+  elseif coach then
+    if frame.empty then frame.empty:Hide() end
+    if frame.coachView and frame.coachView.refresh then frame.coachView.refresh() end
   else
     Refresh()
   end
@@ -1435,7 +2305,7 @@ local function BuildFrame()
   tb:SetScript("OnDragStop", function() frame:StopMovingOrSizing(); SavePosition(frame) end)
   local tbbg = tb:CreateTexture(nil, "BACKGROUND")
   tbbg:SetAllPoints()
-  tbbg:SetColorTexture(0, 0, 0, 0.50)
+  ApplyStyleTex(tbbg, "titlebar", { 0.10, 0.10, 0.10, 1 })
 
   local tbicon = tb:CreateTexture(nil, "ARTWORK")
   tbicon:SetSize(16, 16)
@@ -1461,6 +2331,13 @@ local function BuildFrame()
     fs:SetText(text)
     b:SetWidth((fs:GetStringWidth() or 40) + 12)
     b.fs = fs
+    -- realce de fundo da aba ativa (design system)
+    local hl = b:CreateTexture(nil, "BACKGROUND")
+    hl:SetPoint("TOPLEFT", b, "TOPLEFT", 2, 0)
+    hl:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, -1)
+    ApplyStyleTex(hl, "tabActive", { 1, 1, 1, 0.06 })
+    hl:Hide()
+    b.hl = hl
     local bar = b:CreateTexture(nil, "ARTWORK")
     bar:SetHeight(2)
     bar:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 4, -1)
@@ -1476,12 +2353,17 @@ local function BuildFrame()
     return b
   end
   local tabChars = makeViewTab(L.VIEW_CHARS, "chars", title, 16)
-  makeViewTab(L.VIEW_KEYS, "keys", tabChars, 2)
+  local tabKeys  = makeViewTab(L.VIEW_KEYS, "keys", tabChars, 2)
+  makeViewTab(L.VIEW_COACH, "coach", tabKeys, 2)
   frame.paintView = function()
+    local mode = (KA.GetMode and KA.GetMode()) or "pve"
+    local extraAllowed = (mode ~= "pvp") -- abas "Chaves"/"Progresso" somem no só-PvP
     local view = (KA.GetView and KA.GetView()) or "chars"
     for _, b in ipairs(frame.viewTabs) do
+      if b.viewKey == "keys" or b.viewKey == "coach" then b:SetShown(extraAllowed) end
       local active = (b.viewKey == view)
       b.bar:SetShown(active)
+      if b.hl then b.hl:SetShown(active) end
       if active then b.fs:SetTextColor(1, 1, 1)
       else b.fs:SetTextColor(0.6, 0.6, 0.6) end
     end
@@ -1644,6 +2526,34 @@ local function BuildFrame()
 
   -- VIEW DE RECOMPENSAS (aba "Chaves") — criada uma vez, escondida por padrão.
   frame.keysView = BuildKeysView(frame)
+
+  -- VIEW "PROGRESSO" (coach) — criada uma vez, escondida por padrão.
+  frame.coachView = BuildCoachView(frame)
+
+  -- Eventos que mudam o COACH (gear/brasões): recalcula só quando a aba Progresso
+  -- está visível. Coalescido (0.3s) p/ não repintar a cada BAG_UPDATE.
+  local coachEvents = CreateFrame("Frame")
+  coachEvents:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+  coachEvents:RegisterEvent("BAG_UPDATE")
+  coachEvents:RegisterEvent("CURRENCY_DISPLAY_UPDATE")
+  coachEvents:RegisterEvent("ITEM_DATA_LOAD_RESULT") -- nomes de item da tabela de prioridade
+  local coachPending = false
+  local function coachRefreshNow()
+    coachPending = false
+    if frame and frame:IsShown() and frame.coachView and frame.coachView:IsShown()
+       and frame.coachView.refresh then
+      pcall(frame.coachView.refresh)
+    end
+  end
+  coachEvents:SetScript("OnEvent", function()
+    if coachPending then return end
+    coachPending = true
+    if C_Timer and C_Timer.After then
+      C_Timer.After(0.3, coachRefreshNow)
+    else
+      coachRefreshNow()
+    end
+  end)
 
   -- ticker do countdown (1s)
   frame.elapsed = 1

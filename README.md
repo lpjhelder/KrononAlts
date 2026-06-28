@@ -4,11 +4,17 @@ Painel **cross-character** de objetivos semanais para o ecossistema **Kronon**. 
 
 ## A janela
 
-Painel escuro flat com uma **titlebar** (ícone, título e o countdown de reset semanal/diário) que também é a alça de arrastar — **a posição é salva** entre sessões. Na titlebar há também um **toggle de view** com duas abas, **Personagens** e **Chaves** (a escolha é salva). Abaixo, uma **linha de resumo** ("X/Y cofres prontos · N com recompensa esperando · M personagens") e a **tabela** (com rolagem para muitos alts).
+Painel escuro flat com uma **titlebar** (ícone, título e o countdown de reset semanal/diário) que também é a alça de arrastar — **a posição é salva** entre sessões. Na titlebar há também um **toggle de view** com três abas, **Personagens**, **Chaves** e **Progresso** (a escolha é salva). Abaixo, uma **linha de resumo** ("X/Y cofres prontos · N com recompensa esperando · M personagens") e a **tabela** (com rolagem para muitos alts).
 
 ## Aba Chaves
 
 A aba **Chaves** mostra a **tabela de recompensas de Mítica+ da Temporada 1**, com todas as 9 linhas de **+2 a +10**: o item de **fim da masmorra** e do **Grande Cofre** (ilvl + trilha) e o **brasão** ganho (quantidade + tier). As trilhas são coloridas por tier — **Campeão** verde, **Herói** azul, **Mítico** dourado — e as linhas de **salto** (quando o brasão muda de tier em **+4** e **+9**, e o Cofre vira Mítico em **+10**) ganham realce. No topo aparece o **seu ilvl equipado** e cada chave cujo Fim/Cofre já é upgrade pra você recebe um **✓**; um guia curto indica a partir de qual chave o Fim e o Cofre passam a melhorar seu equipamento. O **rodapé** lembra o custo de upgrade (20 brasões por nível, 120 por item inteiro, limite de 100/semana por tipo).
+
+## Aba Progresso ("O que fazer agora")
+
+A aba **Progresso** é um **coach de upgrade** do personagem logado. Ela varre o **gear equipado**, identifica a **trilha** de cada peça (**Campeão** / **Herói** / **Mítico**), mostra quantas peças ainda dá pra melhorar, aponta o **elo mais fraco** (slot onde focar primeiro) e seu **ilvl / 289** (teto da season); lista seus **brasões** com o **progresso do cap semanal** real de cada tipo (que acumula com o catch-up das semanas) e **avisa quando um brasão está perto do cap**; sugere **gastar brasões** na trilha mais relevante e **qual chave** fazer conforme seu equipamento (Mítica 0 → +6/+7 → +9/+10 → +10, com o objetivo **+10 / Cofre Mítico**); e mostra uma **tabela de prioridade de dungeons** que lista, por dungeon (em árvore), os **itens** dos seus favoritos, ordenada pela quantidade.
+
+A **tabela de prioridade** é uma **integração opcional com o [KeystoneLoot](https://www.curseforge.com/wow/addons/keystoneloot)**: lê seus favoritos da SavedVariable dele e prioriza por **BiS**; se você ainda não marcou nenhum BiS, cai para os **essenciais** (Must have). **Sem o KeystoneLoot o resto do coach funciona normalmente** (gear, brasões, gastar brasões e quais-chaves). As abas **Chaves** e **Progresso** ficam ocultas no modo **somente PvP**.
 
 ## Colunas
 
@@ -49,4 +55,4 @@ Dentro da tabela, **clique-direito** num personagem abre um **menu de contexto**
 
 ## Ecossistema
 
-Parte do **Kronon**, junto com o KrononBags e o KrononMarket. Autocontido (sem dependências externas) e trilíngue PT/EN/ES nativo.
+Parte do **Kronon**, junto com o KrononBags e o KrononMarket. Autocontido (sem dependências obrigatórias; o **KeystoneLoot** é uma integração **opcional** que enriquece a aba Progresso) e trilíngue PT/EN/ES nativo.

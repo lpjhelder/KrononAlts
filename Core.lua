@@ -1410,6 +1410,21 @@ KA.TRACK_NEXT_KEY = {
   myth     = { keyL = "KEYS_COACH_NK_MYTH_K",  msgL = "KEYS_COACH_NK_MYTH_M"  },
 }
 
+-- Banner de fundo por dungeon (challengeModeId -> fileID da arte de fundo). São os
+-- mesmos bgTexture do KeystoneLoot (data/dungeons.lua, Season 16). Usado pela tabela
+-- de prioridade do coach. Fallback: a `texture` do C_ChallengeMode.GetMapUIInfo.
+-- EDITE a cada season (os IDs mudam com as dungeons do pool).
+KA.DUNGEON_BG = {
+  [161] = 1041999, -- Die Himmelsnadel / The Azure Vault-like
+  [239] = 1718213, -- Sitz des Triumvirats
+  [402] = 4742929, -- Akademie von Algeth'ar
+  [556] = 608210,  -- Grube von Saron
+  [557] = 7464937, -- Windläuferturm
+  [558] = 7467174, -- Terrasse der Magister
+  [559] = 7570501, -- Nexuspunkt Xenas
+  [560] = 7478529, -- Maisarakavernen
+}
+
 local function vaultFilledSum(d)
   local v = d.vault
   if type(v) ~= "table" then return 0 end

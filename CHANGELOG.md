@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.1
+
+Moldura da janela mais elaborada. / More elaborate window frame. / Marco de la ventana más elaborado.
+
+**Português**
+
+- **Moldura nativa do WoW** — a janela passou a usar a **moldura dourada nativa** (borda elaborada com cantos, barra de título e botão de fechar) com um **portrait circular exibindo a logo do Kronon**. Vale para as três abas. É só aparência — arraste, posição salva, minimapa, config e conteúdo continuam iguais.
+- **Banners de dungeon** — na tabela de prioridade (aba **Progresso**), cada dungeon agora mostra a **arte da masmorra** como fundo, com um leve **fade** à direita, deixando a lista mais viva.
+
+**English**
+
+- **Native WoW frame** — the window now uses the **native gold frame** (elaborate corner border, title bar and close button) with a **circular portrait showing the Kronon logo**. Applies to all three tabs. Visual only — dragging, saved position, minimap, settings and content are unchanged.
+- **Dungeon banners** — in the priority table (**Progress** tab), each dungeon now shows its **instance art** as a background with a subtle right-side **fade**, making the list livelier.
+
+**Español**
+
+- **Marco nativo de WoW** — la ventana ahora usa el **marco dorado nativo** (borde elaborado con esquinas, barra de título y botón de cerrar) con un **retrato circular que muestra el logo de Kronon**. Aplica a las tres pestañas. Solo apariencia — arrastrar, posición guardada, minimapa, configuración y contenido no cambian.
+- **Banners de mazmorra** — en la tabla de prioridad (pestaña **Progreso**), cada mazmorra ahora muestra el **arte de la instancia** como fondo con un sutil **difuminado** a la derecha, dando más vida a la lista.
+
 ## 0.9.0
 
 Nova aba **Progresso** ("O que fazer agora") com um coach de upgrade. / New **Progress** tab ("What to do now") with an upgrade coach. / Nueva pestaña **Progreso** ("Qué hacer ahora") con un coach de mejora.

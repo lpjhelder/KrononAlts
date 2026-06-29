@@ -1434,6 +1434,14 @@ local function DungeonIcon(cmId)
   return nil
 end
 
+-- Banner de fundo da dungeon: usa o fileID hardcoded (KA.DUNGEON_BG, igual ao
+-- KeystoneLoot); senão a texture do GetMapUIInfo (ícone). nil = sem banner.
+local function DungeonBanner(cmId)
+  local map = KA.DUNGEON_BG
+  if type(map) == "table" and cmId and map[cmId] then return map[cmId] end
+  return DungeonIcon(cmId)
+end
+
 -- Ícone (fileID) de um item — via GetItemInfoInstant (SÍNCRONO, sem cache). Fallback
 -- p/ o ponto de interrogação. Não precisa de async (só a qualidade/nome precisam).
 local function ItemIcon(itemId)
@@ -1918,8 +1926,25 @@ local function BuildCoachView(parent)
       b = CreateFrame("Frame", nil, priChild)
       b:SetPoint("LEFT", priChild, "LEFT", 0, 0)
       b:SetPoint("RIGHT", priChild, "RIGHT", 0, 0)
-      b.zebra = b:CreateTexture(nil, "BACKGROUND")
+      -- zebra (sublevel 1) + BANNER da dungeon (sublevel 2, alpha 0.5) com fade à
+      -- direita via MaskTexture "perks-list-mask" — imita o KeystoneLoot (entry_frame
+      -- + templates.xml). Tudo defensivo: atlas/máscara ausentes → sem fade/sem banner.
+      b.zebra = b:CreateTexture(nil, "BACKGROUND", nil, 1)
       b.zebra:SetAllPoints()
+      b.dungeonBG = b:CreateTexture(nil, "BACKGROUND", nil, 2)
+      b.dungeonBG:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+      b.dungeonBG:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
+      b.dungeonBG:SetWidth(325)
+      b.dungeonBG:SetAlpha(0.5)
+      b.dungeonBG:Hide()
+      pcall(function()
+        local mask = b:CreateMaskTexture()
+        mask:SetAtlas("perks-list-mask", true) -- useAtlasSize
+        mask:ClearAllPoints()
+        mask:SetPoint("LEFT", b, "LEFT", -286, 0)
+        b.dungeonBG:AddMaskTexture(mask)
+        b.dungeonMask = mask
+      end)
       b.icon = b:CreateTexture(nil, "ARTWORK")
       b.icon:SetSize(24, 24); b.icon:SetPoint("TOPLEFT", b, "TOPLEFT", 6, -5)
       b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
@@ -1929,7 +1954,10 @@ local function BuildCoachView(parent)
       b.divider = b:CreateTexture(nil, "ARTWORK")
       b.divider:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 4, 0)
       b.divider:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -4, 0)
-      b.divider:SetHeight(1); b.divider:SetColorTexture(1, 1, 1, 0.10)
+      b.divider:SetHeight(3)
+      if not pcall(function() b.divider:SetAtlas("delves-companion-divider"); b.divider:SetAlpha(0.5) end) then
+        b.divider:SetHeight(1); b.divider:SetColorTexture(1, 1, 1, 0.10)
+      end
       b.items = {}
       cv.priBlocks[i] = b
     end
@@ -2114,6 +2142,18 @@ local function BuildCoachView(parent)
         bi = bi + 1
         local b = cv.getBlock(bi)
 
+        -- BANNER de fundo da dungeon (com fade à direita pela máscara) — defensivo
+        if b.dungeonBG then
+          local banner = DungeonBanner(dg.sourceId)
+          if banner then
+            pcall(function() b.dungeonBG:SetTexture(banner) end)
+            pcall(function() b.dungeonBG:SetDesaturated(false) end)
+            b.dungeonBG:Show()
+          else
+            b.dungeonBG:Hide()
+          end
+        end
+
         -- ícone + nome + count da dungeon
         local tex = DungeonIcon(dg.sourceId)
         if tex then b.icon:SetTexture(tex); b.icon:Show() else b.icon:Hide() end
@@ -2258,13 +2298,31 @@ end
 local function BuildFrame()
   if frame then return end
 
-  frame = CreateFrame("Frame", "KrononAltsFrame", UIParent, "BackdropTemplate")
+  -- MOLDURA NATIVA: tenta o ButtonFrameTemplate (moldura dourada NineSlice + portrait
+  -- circular + titlebar + CloseButton + Inset — tudo de graça do WoW). Se falhar,
+  -- cai no frame manual (BackdropTemplate) com a moldura montada à mão. Defensivo.
+  local usingTemplate = false
+  do
+    local ok = pcall(function()
+      frame = CreateFrame("Frame", "KrononAltsFrame", UIParent, "ButtonFrameTemplate")
+    end)
+    if ok and frame and frame.Inset then
+      usingTemplate = true
+    else
+      frame = CreateFrame("Frame", "KrononAltsFrame", UIParent, "BackdropTemplate")
+    end
+  end
   frame:SetSize(FRAME_W, FRAME_H)
   frame:SetFrameStrata("HIGH")
   frame:SetToplevel(true) -- vem INTEIRA pra frente ao clicar (não intercala com a bag/outras janelas)
   frame:SetClampedToScreen(true)
   frame:SetMovable(true)
   ApplyPosition(frame)
+
+  -- host = onde TODO o conteúdo é ancorado: o Inset nativo (template) OU o próprio
+  -- frame (manual). Assim os mesmos offsets servem aos dois modos.
+  local host = (usingTemplate and frame.Inset) or frame
+  frame.host = host
 
   -- fade-in suave ao abrir (animação nativa; SetToFinalAlpha garante alpha 1 ao fim)
   frame.fadeIn = frame:CreateAnimationGroup()
@@ -2282,41 +2340,124 @@ local function BuildFrame()
     end
   end)
 
-  if frame.SetBackdrop then
-    frame:SetBackdrop({
-      bgFile = "Interface\\Buttons\\WHITE8X8",
-      edgeFile = "Interface\\Buttons\\WHITE8X8",
-      edgeSize = 1,
-    })
-    frame:SetBackdropColor(BG[1], BG[2], BG[3], 1)
-    frame:SetBackdropBorderColor(0, 0, 0, 0.85)
+  -- UNDERLAY OPACO: fundo escuro e SÓLIDO atrás de tudo — garante que NADA da cena do
+  -- jogo vaze atrás do texto (vale p/ os dois modos).
+  local solidBg = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
+  solidBg:SetAllPoints()
+  solidBg:SetColorTexture(0.05, 0.05, 0.07, 1) -- escuro, alpha 1 (opaco)
+  frame.solidBg = solidBg
+
+  local tb -- toolbar do topo (abas/engrenagem/countdown) — definida abaixo
+
+  if usingTemplate then
+    -- TÍTULO / PORTRAIT / CLOSE nativos do template
+    pcall(function()
+      if frame.SetTitle then frame:SetTitle(L.TITLE)
+      elseif frame.TitleText then frame.TitleText:SetText(L.TITLE) end
+    end)
+    pcall(function()
+      local p = (frame.PortraitContainer and frame.PortraitContainer.portrait)
+        or frame.portrait or frame.Portrait
+      if p then
+        -- logo do Kronon (mesma do KrononBags) recortada no portrait circular nativo
+        p:SetTexture("Interface\\AddOns\\KrononAlts\\Media\\KrononLogo.tga")
+        p:SetTexCoord(-0.08, 1.08, -0.08, 1.08)
+      end
+    end)
+    -- CloseButton nativo → só esconder a janela (sem o sistema de UIPanel)
+    if frame.CloseButton then
+      frame.CloseButton:SetScript("OnClick", function() frame:Hide() end)
+    end
+    -- ARRASTE: ButtonFrameTemplate não é movível por padrão → handle transparente
+    -- sobre a barra de título nativa (deixa o X livre à direita).
+    local drag = CreateFrame("Frame", nil, frame)
+    drag:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+    drag:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -30, 0)
+    drag:SetHeight(36)
+    drag:EnableMouse(true)
+    drag:RegisterForDrag("LeftButton")
+    drag:SetScript("OnDragStart", function() frame:StartMoving() end)
+    drag:SetScript("OnDragStop", function() frame:StopMovingOrSizing(); SavePosition(frame) end)
+  else
+    -- FUNDO texturizado + MOLDURA ORNAMENTADA montados à mão (fallback).
+    if frame.SetBackdrop then
+      local okBg = pcall(frame.SetBackdrop, frame, {
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1, tile = true, tileSize = 256,
+      })
+      if not okBg then
+        pcall(frame.SetBackdrop, frame, {
+          bgFile = "Interface\\Buttons\\WHITE8X8",
+          edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1,
+        })
+      end
+      pcall(frame.SetBackdropColor, frame, 0.07, 0.08, 0.10, 1)
+      pcall(frame.SetBackdropBorderColor, frame, 0, 0, 0, 1)
+    end
+    do
+      local EXT = 14
+      local ok, deco = pcall(CreateFrame, "Frame", nil, frame, "BackdropTemplate")
+      if ok and deco and deco.SetBackdrop then
+        deco:SetPoint("TOPLEFT", frame, "TOPLEFT", -EXT, EXT)
+        deco:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", EXT, -EXT)
+        pcall(deco.SetFrameLevel, deco, math.max(0, frame:GetFrameLevel()))
+        local applied = pcall(deco.SetBackdrop, deco, {
+          edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", edgeSize = 32,
+        })
+        if applied then
+          pcall(deco.SetBackdropBorderColor, deco, 1, 1, 1, 1)
+          frame.deco = deco
+        else
+          deco:Hide()
+        end
+      end
+    end
   end
 
   tinsert(UISpecialFrames, "KrononAltsFrame") -- ESC fecha
 
-  -- TITLEBAR (preto @50%, alça de arrastar)
-  local tb = CreateFrame("Frame", nil, frame)
-  tb:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
-  tb:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -1, -1)
+  -- TOOLBAR DO TOPO (abas + engrenagem + countdown). Ancorada ao host (no template,
+  -- topo do Inset; no manual, topo do frame). No modo manual também é a titlebar
+  -- (fundo escuro, alça de arraste, título e portrait); no template é transparente.
+  tb = CreateFrame("Frame", nil, host)
+  tb:SetPoint("TOPLEFT", host, "TOPLEFT", usingTemplate and 2 or 1, usingTemplate and -2 or -1)
+  tb:SetPoint("TOPRIGHT", host, "TOPRIGHT", usingTemplate and -2 or -1, usingTemplate and -2 or -1)
   tb:SetHeight(TOP_TITLE)
-  tb:EnableMouse(true)
-  tb:RegisterForDrag("LeftButton")
-  tb:SetScript("OnDragStart", function() frame:StartMoving() end)
-  tb:SetScript("OnDragStop", function() frame:StopMovingOrSizing(); SavePosition(frame) end)
-  local tbbg = tb:CreateTexture(nil, "BACKGROUND")
-  tbbg:SetAllPoints()
-  ApplyStyleTex(tbbg, "titlebar", { 0.10, 0.10, 0.10, 1 })
 
-  local tbicon = tb:CreateTexture(nil, "ARTWORK")
-  tbicon:SetSize(16, 16)
-  tbicon:SetPoint("LEFT", tb, "LEFT", 8, 0)
-  tbicon:SetTexture("Interface\\Icons\\INV_Misc_Note_01")
-  tbicon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  local title -- só no modo manual
+  if not usingTemplate then
+    tb:EnableMouse(true)
+    tb:RegisterForDrag("LeftButton")
+    tb:SetScript("OnDragStart", function() frame:StartMoving() end)
+    tb:SetScript("OnDragStop", function() frame:StopMovingOrSizing(); SavePosition(frame) end)
+    local tbbg = tb:CreateTexture(nil, "BACKGROUND")
+    tbbg:SetAllPoints()
+    ApplyStyleTex(tbbg, "titlebar", { 0.10, 0.10, 0.10, 1 })
 
-  local title = tb:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  title:SetPoint("LEFT", tbicon, "RIGHT", 6, 0)
-  title:SetText(L.TITLE)
-  title:SetTextColor(1, 1, 1)
+    local tbicon = tb:CreateTexture(nil, "ARTWORK")
+    tbicon:SetSize(22, 22)
+    tbicon:SetPoint("LEFT", tb, "LEFT", 6, 0)
+    -- logo do Kronon; fallback p/ o ícone genérico se a textura falhar
+    if not pcall(function()
+      tbicon:SetTexture("Interface\\AddOns\\KrononAlts\\Media\\KrononLogo.tga")
+      tbicon:SetTexCoord(-0.08, 1.08, -0.08, 1.08)
+    end) then
+      tbicon:SetTexture("Interface\\Icons\\INV_Misc_Note_01")
+      tbicon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    end
+    local ring = tb:CreateTexture(nil, "OVERLAY")
+    ring:SetSize(30, 30)
+    ring:SetPoint("CENTER", tbicon, "CENTER", 0, 0)
+    if not pcall(ring.SetTexture, ring, "Interface\\Minimap\\MiniMap-TrackingBorder") then
+      ring:Hide()
+    end
+
+    title = tb:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("LEFT", tbicon, "RIGHT", 8, 0)
+    title:SetText(L.TITLE)
+    title:SetTextColor(1, 1, 1)
+  end
 
   -- TOGGLE DE VIEW (abas): Personagens | Chaves — na titlebar, após o título.
   -- A aba ativa ganha um filete azul embaixo; clicar persiste via KA.SetView
@@ -2352,7 +2493,15 @@ local function BuildFrame()
     frame.viewTabs[#frame.viewTabs + 1] = b
     return b
   end
-  local tabChars = makeViewTab(L.VIEW_CHARS, "chars", title, 16)
+  -- âncora inicial das abas: após o título (manual) ou no canto-esq da toolbar (template)
+  local tabStart = CreateFrame("Frame", nil, tb)
+  tabStart:SetSize(1, TOP_TITLE)
+  if title then
+    tabStart:SetPoint("LEFT", title, "RIGHT", 12, 0)
+  else
+    tabStart:SetPoint("LEFT", tb, "LEFT", 8, 0)
+  end
+  local tabChars = makeViewTab(L.VIEW_CHARS, "chars", tabStart, 4)
   local tabKeys  = makeViewTab(L.VIEW_KEYS, "keys", tabChars, 2)
   makeViewTab(L.VIEW_COACH, "coach", tabKeys, 2)
   frame.paintView = function()
@@ -2369,15 +2518,27 @@ local function BuildFrame()
     end
   end
 
-  local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-  close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 1, 1)
-  close:SetFrameLevel(tb:GetFrameLevel() + 5)
-  close:SetScript("OnClick", function() frame:Hide() end)
+  -- CLOSE: no template usa o CloseButton NATIVO; no manual cria o nosso.
+  local closeAnchor
+  if usingTemplate and frame.CloseButton then
+    closeAnchor = frame.CloseButton
+  else
+    local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 1, 1)
+    close:SetFrameLevel(tb:GetFrameLevel() + 5)
+    close:SetScript("OnClick", function() frame:Hide() end)
+    closeAnchor = close
+  end
 
-  -- BOTÃO DE ENGRENAGEM (abre a janela de config) — à esquerda do X
+  -- BOTÃO DE ENGRENAGEM (abre a janela de config). No template fica no canto-dir da
+  -- toolbar; no manual, à esquerda do X.
   local gear = CreateFrame("Button", nil, tb)
   gear:SetSize(18, 18)
-  gear:SetPoint("RIGHT", close, "LEFT", -2, 0)
+  if usingTemplate then
+    gear:SetPoint("TOPRIGHT", tb, "TOPRIGHT", -4, -4)
+  else
+    gear:SetPoint("RIGHT", closeAnchor, "LEFT", -2, 0)
+  end
   gear:SetFrameLevel(tb:GetFrameLevel() + 5)
   local gearTex = gear:CreateTexture(nil, "ARTWORK")
   gearTex:SetAllPoints()
@@ -2403,19 +2564,20 @@ local function BuildFrame()
   cd:SetJustifyH("RIGHT")
   frame.countdown = cd
 
-  -- LINHA DE RESUMO
-  local summary = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  summary:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -(TOP_TITLE + 4))
-  summary:SetPoint("RIGHT", frame, "RIGHT", -255, 0)
+  -- LINHA DE RESUMO — parenteada AO host (no template, o Inset é um frame filho; se
+  -- ficasse parenteada ao frame, renderizaria ATRÁS do Inset e sumiria).
+  local summary = host:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  summary:SetPoint("TOPLEFT", host, "TOPLEFT", 12, -(TOP_TITLE + 4))
+  summary:SetPoint("RIGHT", host, "RIGHT", -255, 0)
   summary:SetJustifyH("LEFT")
   summary:SetWordWrap(false)
   frame.summary = summary
 
   -- ocultar concluídos (canto direito da linha de resumo)
-  local hideCb = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+  local hideCb = CreateFrame("CheckButton", nil, host, "UICheckButtonTemplate")
   hideCb:SetSize(20, 20)
-  hideCb:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -8, -(TOP_TITLE + 2))
-  local cbLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  hideCb:SetPoint("TOPRIGHT", host, "TOPRIGHT", -8, -(TOP_TITLE + 2))
+  local cbLabel = host:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   cbLabel:SetPoint("RIGHT", hideCb, "LEFT", -2, 0)
   cbLabel:SetText(L.HIDE_COMPLETED)
   cbLabel:SetTextColor(COLOR_HEADER[1], COLOR_HEADER[2], COLOR_HEADER[3])
@@ -2427,7 +2589,7 @@ local function BuildFrame()
   frame.hideCb = hideCb
 
   -- BOTÃO AGRUPAR (3 estados: não / reino / facção) — à esquerda do "ocultar"
-  local groupBtn = CreateFrame("Button", nil, frame)
+  local groupBtn = CreateFrame("Button", nil, host)
   groupBtn:SetSize(100, 18)
   groupBtn:SetPoint("RIGHT", cbLabel, "LEFT", -14, 0)
   local gbText = groupBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -2452,10 +2614,10 @@ local function BuildFrame()
   groupBtn.refresh()
   frame.groupBtn = groupBtn
 
-  -- CABEÇALHO DE COLUNAS (preto @30%)
-  local headerBar = CreateFrame("Frame", nil, frame)
-  headerBar:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -(TOP_TITLE + TOP_SUMMARY))
-  headerBar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -1, -(TOP_TITLE + TOP_SUMMARY))
+  -- CABEÇALHO DE COLUNAS (preto @30%) — parenteado AO host (z-order acima do Inset)
+  local headerBar = CreateFrame("Frame", nil, host)
+  headerBar:SetPoint("TOPLEFT", host, "TOPLEFT", 1, -(TOP_TITLE + TOP_SUMMARY))
+  headerBar:SetPoint("TOPRIGHT", host, "TOPRIGHT", -1, -(TOP_TITLE + TOP_SUMMARY))
   headerBar:SetHeight(TOP_HEADER)
   local hbbg = headerBar:CreateTexture(nil, "BACKGROUND")
   hbbg:SetAllPoints()
@@ -2496,10 +2658,10 @@ local function BuildFrame()
     frame.headers[col.key] = h
   end
 
-  -- SCROLLFRAME
-  local scroll = CreateFrame("ScrollFrame", "KrononAltsScroll", frame, "UIPanelScrollFrameTemplate")
-  scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -CONTENT_TOP)
-  scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -26, 8)
+  -- SCROLLFRAME — parenteado AO host (z-order acima do Inset no template)
+  local scroll = CreateFrame("ScrollFrame", "KrononAltsScroll", host, "UIPanelScrollFrameTemplate")
+  scroll:SetPoint("TOPLEFT", host, "TOPLEFT", 4, -CONTENT_TOP)
+  scroll:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -26, 8)
   frame.scroll = scroll
 
   scrollChild = CreateFrame("Frame", nil, scroll)
@@ -2515,8 +2677,8 @@ local function BuildFrame()
     self:SetVerticalScroll(new)
   end)
 
-  -- estado vazio
-  local empty = frame:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+  -- estado vazio — parenteado AO host (z-order acima do Inset no template)
+  local empty = host:CreateFontString(nil, "OVERLAY", "GameFontDisable")
   empty:SetPoint("TOP", scroll, "TOP", 0, -20)
   empty:SetWidth(FRAME_W - 60)
   empty:SetJustifyH("CENTER")
@@ -2524,11 +2686,11 @@ local function BuildFrame()
   empty:Hide()
   frame.empty = empty
 
-  -- VIEW DE RECOMPENSAS (aba "Chaves") — criada uma vez, escondida por padrão.
-  frame.keysView = BuildKeysView(frame)
+  -- VIEW DE RECOMPENSAS (aba "Chaves") — ancorada ao host; escondida por padrão.
+  frame.keysView = BuildKeysView(host)
 
-  -- VIEW "PROGRESSO" (coach) — criada uma vez, escondida por padrão.
-  frame.coachView = BuildCoachView(frame)
+  -- VIEW "PROGRESSO" (coach) — ancorada ao host; escondida por padrão.
+  frame.coachView = BuildCoachView(host)
 
   -- Eventos que mudam o COACH (gear/brasões): recalcula só quando a aba Progresso
   -- está visível. Coalescido (0.3s) p/ não repintar a cada BAG_UPDATE.
@@ -2561,7 +2723,8 @@ local function BuildFrame()
     self.elapsed = self.elapsed + e
     if self.elapsed < 1 then return end
     self.elapsed = 0
-    local info = KA.GetResetInfo()
+    local info = KA.GetResetInfo and KA.GetResetInfo()
+    if not info or not self.countdown then return end
     -- só o reset SEMANAL (o diário foi cortado); valor em branco vivo p/ destaque.
     self.countdown:SetText(string.format("|cff888888%s|r |cffffffff%s|r",
       L.RESET_WEEKLY, FormatCountdown(info.weeklySeconds)))

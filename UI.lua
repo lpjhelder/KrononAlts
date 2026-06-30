@@ -21,11 +21,13 @@ local COLOR_ACTION  = { 1.00, 0.65, 0.25 }      -- laranja "a fazer" (acionável
 -- Cores por tier de trilha de loot (aba Chaves): Campeão verde · Herói azul ·
 -- Mítico dourado/laranja. Reusa a paleta do Alts pra ficar coerente.
 local TRACK_TIER_COLOR = {
+  V = { 0.62, 0.66, 0.72 }, -- Veterano (prata) — LFR
   C = { 0.20, 0.82, 0.48 }, -- Campeão (verde)
   H = { 0.20, 0.55, 1.00 }, -- Herói (azul)
   M = { 1.00, 0.65, 0.10 }, -- Mítico (dourado/laranja)
 }
 local function TrackName(code)
+  if code == "V" then return L.TRACK_VET end
   if code == "C" then return L.TRACK_CHAMP end
   if code == "H" then return L.TRACK_HERO end
   if code == "M" then return L.TRACK_MYTH end
@@ -1768,6 +1770,140 @@ local function BuildKeysView(parent)
 end
 
 -- ===========================================================================
+-- VIEW "RAIDS" — tabela de recompensas de raid por DIFICULDADE (dados em
+-- KA.RAID_REWARDS). Mesma cara/colunas da aba Chaves; alterna via ApplyView.
+-- ===========================================================================
+local RAID_COL   = { diff = 8,  drop = 92,  vault = 250, crest = 408 }
+local RAID_COL_W = { diff = 80, drop = 154, vault = 154, crest = 150 }
+
+-- Célula "faixa de ilvl + trilha" colorida por tier; ✓ quando o topo é upgrade.
+local function raidDropCell(lo, hi, tcode, isUp)
+  local col = TRACK_TIER_COLOR[tcode] or COLOR_NEUTRAL
+  local s = colored(col, string.format("%d\226\128\147%d  %s", lo, hi, TrackName(tcode)))
+  if isUp then s = s .. "  " .. CHECK_ICON end
+  return s
+end
+
+-- Célula "ilvl + trilha" (Cofre); ✓ quando é upgrade pro char.
+local function raidVaultCell(ival, tcode, isUp)
+  local col = TRACK_TIER_COLOR[tcode] or COLOR_NEUTRAL
+  local s = colored(col, string.format("%d  %s", ival, TrackName(tcode)))
+  if isUp then s = s .. "  " .. CHECK_ICON end
+  return s
+end
+
+local function BuildRaidsView(parent)
+  local rv = CreateFrame("Frame", nil, parent)
+  rv:SetPoint("TOPLEFT", parent, "TOPLEFT", 1, -(TOP_TITLE + 1))
+  rv:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -1, 1)
+  rv:Hide()
+
+  -- título (esquerda) + ilvl do char (direita)
+  local title = rv:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  title:SetPoint("TOPLEFT", rv, "TOPLEFT", 16, -12)
+  title:SetText(L.RAIDS_TITLE)
+  title:SetTextColor(ACCENT[1], ACCENT[2], ACCENT[3])
+
+  local ilvlFS = rv:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  ilvlFS:SetPoint("TOPRIGHT", rv, "TOPRIGHT", -16, -14)
+  ilvlFS:SetJustifyH("RIGHT"); ilvlFS:SetWordWrap(false)
+  rv.ilvlFS = ilvlFS
+
+  -- cabeçalho de colunas
+  local headerBar = CreateFrame("Frame", nil, rv)
+  headerBar:SetPoint("TOPLEFT", title, "BOTTOMLEFT", -8, -12)
+  headerBar:SetPoint("RIGHT", rv, "RIGHT", -8, 0)
+  headerBar:SetHeight(TOP_HEADER)
+  local hbbg = headerBar:CreateTexture(nil, "BACKGROUND")
+  hbbg:SetAllPoints(); hbbg:SetColorTexture(0, 0, 0, 0.30)
+  local function colHeader(off, w, justify, text)
+    local fs = headerBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    fs:SetPoint("LEFT", headerBar, "LEFT", off, 0)
+    fs:SetWidth(w); fs:SetJustifyH(justify); fs:SetWordWrap(false)
+    fs:SetTextColor(COLOR_HEADER[1], COLOR_HEADER[2], COLOR_HEADER[3])
+    fs:SetText(text)
+  end
+  colHeader(RAID_COL.diff,  RAID_COL_W.diff,  "LEFT", L.RAIDS_COL_DIFF)
+  colHeader(RAID_COL.drop,  RAID_COL_W.drop,  "LEFT", L.RAIDS_COL_DROP)
+  colHeader(RAID_COL.vault, RAID_COL_W.vault, "LEFT", L.KEYS_COL_VAULT)
+  colHeader(RAID_COL.crest, RAID_COL_W.crest, "LEFT", L.KEYS_COL_CREST)
+
+  -- linhas estáticas (1 por dificuldade)
+  rv.rows = {}
+  local data = KA.RAID_REWARDS or {}
+  for i = 1, #data do
+    local r = CreateFrame("Frame", nil, rv)
+    r:SetHeight(KEY_ROW_H)
+    r:SetPoint("TOPLEFT", headerBar, "BOTTOMLEFT", 0, -((i - 1) * KEY_ROW_H))
+    r:SetPoint("RIGHT", headerBar, "RIGHT", 0, 0)
+    r.bg = r:CreateTexture(nil, "BACKGROUND")
+    r.bg:SetAllPoints()
+    r.divider = r:CreateTexture(nil, "BORDER")
+    r.divider:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 4, 0)
+    r.divider:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", -4, 0)
+    r.divider:SetHeight(1)
+    ApplyStyleTex(r.divider, "divider", { 1, 1, 1, 0.07 })
+    r.accent = r:CreateTexture(nil, "ARTWORK")
+    r.accent:SetPoint("TOPLEFT", r, "TOPLEFT", 0, 0)
+    r.accent:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 0, 0)
+    r.accent:SetWidth(3); r.accent:Hide()
+    local function cell(off, w, justify)
+      local fs = r:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+      fs:SetPoint("LEFT", r, "LEFT", off, 0)
+      fs:SetWidth(w); fs:SetJustifyH(justify); fs:SetJustifyV("MIDDLE")
+      fs:SetWordWrap(false)
+      return fs
+    end
+    r.cDiff  = cell(RAID_COL.diff,  RAID_COL_W.diff,  "LEFT")
+    r.cDrop  = cell(RAID_COL.drop,  RAID_COL_W.drop,  "LEFT")
+    r.cVault = cell(RAID_COL.vault, RAID_COL_W.vault, "LEFT")
+    r.cCrest = cell(RAID_COL.crest, RAID_COL_W.crest, "LEFT")
+    rv.rows[i] = r
+  end
+
+  -- nota de rodapé
+  local note = rv:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  note:SetPoint("BOTTOMLEFT", rv, "BOTTOMLEFT", 16, 12)
+  note:SetPoint("RIGHT", rv, "RIGHT", -16, 0)
+  note:SetJustifyH("LEFT"); note:SetWordWrap(true)
+  note:SetText(L.RAIDS_NOTE)
+  rv.note = note
+
+  -- (re)preenche o que depende do char logado (ilvl p/ marcar upgrades).
+  rv.refresh = function()
+    local ilvl = PlayerEquippedIlvl()
+    if ilvl then
+      rv.ilvlFS:SetText(colored(COLOR_NEUTRAL, string.format(L.KEYS_YOUR_ILVL, ilvl)))
+    else
+      local lbl = (L.KEYS_YOUR_ILVL:gsub("%%d", "%%s"))
+      rv.ilvlFS:SetText(colored(COLOR_MISSING, string.format(lbl, L.NONE)))
+    end
+
+    for i, dRow in ipairs(data) do
+      local r = rv.rows[i]
+      if r then
+        local tc = TRACK_TIER_COLOR[dRow.crestT] or COLOR_NEUTRAL
+        -- fundo zebra simples
+        if i % 2 == 0 then
+          ApplyStyleTex(r.bg, "bgRow", { 0, 0, 0, 0.16 })
+        else
+          r.bg:SetColorTexture(0, 0, 0, 0)
+        end
+        -- acento esquerdo SEMPRE na cor do tier da dificuldade (color-code por linha)
+        r.accent:SetColorTexture(tc[1], tc[2], tc[3], 1); r.accent:Show()
+        r.cDiff:SetText(colored(tc, L[dRow.diff] or dRow.diff))
+        r.cDrop:SetText(raidDropCell(dRow.endLo, dRow.endHi, dRow.endT, ilvl and dRow.endHi > ilvl))
+        r.cVault:SetText(raidVaultCell(dRow.vaultI, dRow.vaultT, ilvl and dRow.vaultI > ilvl))
+        r.cCrest:SetText(colored(tc, TrackName(dRow.crestT)))
+        r:Show()
+      end
+    end
+  end
+
+  return rv
+end
+
+-- ===========================================================================
 -- VIEW "PROGRESSO" (coach) — 3ª aba. Renderiza o coach numa frame própria (gear,
 -- brasões com cap semanal, 3 sugestões). Lógica idêntica ao que seria embutido na
 -- aba Chaves; aqui isolada. Sem dependência rígida do KeystoneLoot.
@@ -2089,7 +2225,7 @@ local function BuildCoachView(parent)
           end
         else
           txt = colored(COLOR_NEUTRAL,
-            string.format(L.KEYS_COACH_SPEND_LOW, name, nm, perRank - x))
+            string.format(L.KEYS_COACH_SPEND_LOW, name, nm, perRank - x, need - x))
         end
         fs:SetText(txt)
         fs:Show()
@@ -2260,7 +2396,7 @@ ApplyView = function()
   -- modo SÓ-PvP: as abas "Chaves" e "Progresso" ficam escondidas (M+ não faz
   -- sentido p/ PvP puro); se a view ativa era uma delas, volta pra "chars" pra
   -- não prender numa aba oculta.
-  if mode == "pvp" and (view == "keys" or view == "coach") then
+  if mode == "pvp" and (view == "keys" or view == "coach" or view == "raids") then
     -- KA.SetView dispara o bus → ApplyView reentra (se a janela está visível) já
     -- como "chars" e renderiza tudo; saímos aqui p/ não rodar Refresh() duas vezes.
     if KA.SetView then
@@ -2271,7 +2407,8 @@ ApplyView = function()
   end
   local keys  = (view == "keys")
   local coach = (view == "coach")
-  local chars = not (keys or coach)
+  local raids = (view == "raids")
+  local chars = not (keys or coach or raids)
   if frame.summary     then frame.summary:SetShown(chars) end
   if frame.groupBtn    then frame.groupBtn:SetShown(chars) end
   if frame.hideCb      then frame.hideCb:SetShown(chars) end
@@ -2280,6 +2417,7 @@ ApplyView = function()
   if frame.scroll      then frame.scroll:SetShown(chars) end
   if frame.keysView    then frame.keysView:SetShown(keys) end
   if frame.coachView   then frame.coachView:SetShown(coach) end
+  if frame.raidsView   then frame.raidsView:SetShown(raids) end
   if frame.paintView   then frame.paintView() end
   if keys then
     if frame.empty then frame.empty:Hide() end
@@ -2287,6 +2425,9 @@ ApplyView = function()
   elseif coach then
     if frame.empty then frame.empty:Hide() end
     if frame.coachView and frame.coachView.refresh then frame.coachView.refresh() end
+  elseif raids then
+    if frame.empty then frame.empty:Hide() end
+    if frame.raidsView and frame.raidsView.refresh then frame.raidsView.refresh() end
   else
     Refresh()
   end
@@ -2503,13 +2644,14 @@ local function BuildFrame()
   end
   local tabChars = makeViewTab(L.VIEW_CHARS, "chars", tabStart, 4)
   local tabKeys  = makeViewTab(L.VIEW_KEYS, "keys", tabChars, 2)
-  makeViewTab(L.VIEW_COACH, "coach", tabKeys, 2)
+  local tabRaids = makeViewTab(L.VIEW_RAIDS, "raids", tabKeys, 2)
+  makeViewTab(L.VIEW_COACH, "coach", tabRaids, 2)
   frame.paintView = function()
     local mode = (KA.GetMode and KA.GetMode()) or "pve"
     local extraAllowed = (mode ~= "pvp") -- abas "Chaves"/"Progresso" somem no só-PvP
     local view = (KA.GetView and KA.GetView()) or "chars"
     for _, b in ipairs(frame.viewTabs) do
-      if b.viewKey == "keys" or b.viewKey == "coach" then b:SetShown(extraAllowed) end
+      if b.viewKey == "keys" or b.viewKey == "coach" or b.viewKey == "raids" then b:SetShown(extraAllowed) end
       local active = (b.viewKey == view)
       b.bar:SetShown(active)
       if b.hl then b.hl:SetShown(active) end
@@ -2691,6 +2833,9 @@ local function BuildFrame()
 
   -- VIEW "PROGRESSO" (coach) — ancorada ao host; escondida por padrão.
   frame.coachView = BuildCoachView(host)
+
+  -- VIEW "RAIDS" — tabela de recompensas de raid; ancorada ao host; escondida por padrão.
+  frame.raidsView = BuildRaidsView(host)
 
   -- Eventos que mudam o COACH (gear/brasões): recalcula só quando a aba Progresso
   -- está visível. Coalescido (0.3s) p/ não repintar a cada BAG_UPDATE.

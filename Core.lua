@@ -170,6 +170,16 @@ local EN = {
   KEYS_COL_END     = "End of run",
   KEYS_COL_VAULT   = "Great Vault",
   KEYS_COL_CREST   = "Crests",
+  VIEW_RAIDS       = "Raids",
+  TRACK_VET        = "Veteran",
+  RAIDS_TITLE      = "Raid rewards  \194\183  Season 1",
+  RAIDS_COL_DIFF   = "Difficulty",
+  RAIDS_COL_DROP   = "Boss drop",
+  RAIDS_NOTE       = "Bosses drop higher ilvl later in the raid.  \194\183  Vault \226\137\136 highest boss killed.  \194\183  Crest tier follows the difficulty.",
+  RAID_LFR         = "LFR",
+  RAID_NORMAL      = "Normal",
+  RAID_HEROIC      = "Heroic",
+  RAID_MYTHIC      = "Mythic",
   KEYS_GUIDE       = "End-of-run rises from +%d  \194\183  Vault from +%d",
   KEYS_GUIDE_NONE  = "Log in on a character to see what's an upgrade for you.",
   KEYS_GUIDE_CAP   = "Your gear already beats every reward in this table.",
@@ -185,7 +195,7 @@ local EN = {
   KEYS_COACH_CREST_ITEM_NOWEEK= "%s: %d",
   KEYS_COACH_SPEND_HAS = "%s: %d pieces \194\183 %d upgrade(s) now (%d crests) \194\183 %d to max",
   KEYS_COACH_SPEND_MAXALL = "%s: %d pieces \194\183 can max all now (%d crests)",
-  KEYS_COACH_SPEND_LOW = "%s: %d pieces \194\183 gather +%d for 1 upgrade",
+  KEYS_COACH_SPEND_LOW = "%s: %d pieces \194\183 gather +%d for 1 upgrade \194\183 %d to fully max",
   KEYS_COACH_SPEND_NONE= "No crests to spend right now \226\128\148 earn more from keys",
   KEYS_COACH_KEYS      = "Keys: %s  \194\183  %s",
   KEYS_COACH_KEY_GOAL  = "goal: Mythic Vault",
@@ -329,6 +339,16 @@ local PT = {
   KEYS_COL_END     = "Fim da dg",
   KEYS_COL_VAULT   = "No Cofre",
   KEYS_COL_CREST   = "Brasão",
+  VIEW_RAIDS       = "Raides",
+  TRACK_VET        = "Veterano",
+  RAIDS_TITLE      = "Recompensas de Raide  \194\183  Temporada 1",
+  RAIDS_COL_DIFF   = "Dificuldade",
+  RAIDS_COL_DROP   = "Drop do boss",
+  RAIDS_NOTE       = "Bosses dropam ilvl maior quanto mais pro fim da raid.  \194\183  Cofre \226\137\136 boss mais alto que você matou.  \194\183  O tier do brasão segue a dificuldade.",
+  RAID_LFR         = "LFR",
+  RAID_NORMAL      = "Normal",
+  RAID_HEROIC      = "Heroico",
+  RAID_MYTHIC      = "Mítico",
   KEYS_GUIDE       = "Fim sobe a partir de +%d  \194\183  Cofre a partir de +%d",
   KEYS_GUIDE_NONE  = "Logue num personagem para ver o que é upgrade pra você.",
   KEYS_GUIDE_CAP   = "Seu equipamento já supera todas as recompensas desta tabela.",
@@ -343,7 +363,7 @@ local PT = {
   KEYS_COACH_CREST_ITEM_NOWEEK= "%s: %d",
   KEYS_COACH_SPEND_HAS = "%s: %d peças \194\183 %d upgrade(s) já (%d brasões) \194\183 faltam %d pra maxar",
   KEYS_COACH_SPEND_MAXALL = "%s: %d peças \194\183 dá pra maxar tudo agora (%d brasões)",
-  KEYS_COACH_SPEND_LOW = "%s: %d peças \194\183 junte +%d pra 1 upgrade",
+  KEYS_COACH_SPEND_LOW = "%s: %d peças \194\183 junte +%d pra 1 upgrade \194\183 faltam %d pra maxar tudo",
   KEYS_COACH_SPEND_NONE= "Sem brasões para gastar agora \226\128\148 ganhe mais nas chaves",
   KEYS_COACH_KEYS      = "Chaves: %s  \194\183  %s",
   KEYS_COACH_KEY_GOAL  = "objetivo: Cofre Mítico",
@@ -487,6 +507,16 @@ local ES = {
   KEYS_COL_END     = "Fin de mazm.",
   KEYS_COL_VAULT   = "Cámara",
   KEYS_COL_CREST   = "Blasón",
+  VIEW_RAIDS       = "Bandas",
+  TRACK_VET        = "Veterano",
+  RAIDS_TITLE      = "Recompensas de banda  \194\183  Temporada 1",
+  RAIDS_COL_DIFF   = "Dificultad",
+  RAIDS_COL_DROP   = "Botín de jefe",
+  RAIDS_NOTE       = "Los jefes sueltan más ilvl cuanto más avanzada la banda.  \194\183  Cámara \226\137\136 jefe más alto que mataste.  \194\183  El tier del blasón sigue la dificultad.",
+  RAID_LFR         = "LFR",
+  RAID_NORMAL      = "Normal",
+  RAID_HEROIC      = "Heroico",
+  RAID_MYTHIC      = "Mítico",
   KEYS_GUIDE       = "El fin sube desde +%d  \194\183  Cámara desde +%d",
   KEYS_GUIDE_NONE  = "Entra con un personaje para ver qué es mejora para ti.",
   KEYS_GUIDE_CAP   = "Tu equipo ya supera todas las recompensas de esta tabla.",
@@ -501,7 +531,7 @@ local ES = {
   KEYS_COACH_CREST_ITEM_NOWEEK= "%s: %d",
   KEYS_COACH_SPEND_HAS = "%s: %d piezas \194\183 %d mejora(s) ya (%d blasones) \194\183 faltan %d para maximizar",
   KEYS_COACH_SPEND_MAXALL = "%s: %d piezas \194\183 puedes maximizar todo ya (%d blasones)",
-  KEYS_COACH_SPEND_LOW = "%s: %d piezas \194\183 reúne +%d para 1 mejora",
+  KEYS_COACH_SPEND_LOW = "%s: %d piezas \194\183 reúne +%d para 1 mejora \194\183 faltan %d para maximizar todo",
   KEYS_COACH_SPEND_NONE= "Sin blasones para gastar ahora \226\128\148 consigue más en las llaves",
   KEYS_COACH_KEYS      = "Llaves: %s  \194\183  %s",
   KEYS_COACH_KEY_GOAL  = "objetivo: Cámara Mítica",
@@ -1322,7 +1352,7 @@ end
 
 function KA.SetView(view)
   if not (DB and DB.settings) then return end
-  if view ~= "chars" and view ~= "keys" and view ~= "coach" then view = "chars" end
+  if view ~= "chars" and view ~= "keys" and view ~= "coach" and view ~= "raids" then view = "chars" end
   DB.settings.view = view
   KA.bus:Fire()
 end
@@ -1346,6 +1376,19 @@ KA.KEY_REWARDS = {
   { key = 8,  endI = 263, endT = "H", endR = "2/6", vaultI = 269, vaultT = "H", vaultR = "4/6", crest = 18, crestT = "H" },
   { key = 9,  endI = 263, endT = "H", endR = "2/6", vaultI = 269, vaultT = "H", vaultR = "4/6", crest = 10, crestT = "M" },
   { key = 10, endI = 266, endT = "H", endR = "3/6", vaultI = 272, vaultT = "M", vaultR = "1/6", crest = 12, crestT = "M" },
+}
+
+-- Recompensas de RAID — Midnight Season 1. Por DIFICULDADE (não por chave): os
+-- bosses dropam numa FAIXA de ilvl (1º boss -> último boss), na trilha da
+-- dificuldade; o Cofre dá até o ilvl do boss mais alto que você matou; o brasão
+-- segue a dificuldade. ilvls espelham KeystoneLoot.UpgradeTracks.raid. EDITE a
+-- cada season junto com KEY_REWARDS.
+--   diff: chave i18n  ·  endLo/endHi: faixa de drop dos bosses  ·  tier V/C/H/M
+KA.RAID_REWARDS = {
+  { diff = "RAID_LFR",    endLo = 233, endHi = 243, endT = "V", vaultI = 243, vaultT = "V", crestT = "V" },
+  { diff = "RAID_NORMAL", endLo = 246, endHi = 256, endT = "C", vaultI = 256, vaultT = "C", crestT = "C" },
+  { diff = "RAID_HEROIC", endLo = 259, endHi = 269, endT = "H", vaultI = 269, vaultT = "H", crestT = "H" },
+  { diff = "RAID_MYTHIC", endLo = 272, endHi = 282, endT = "M", vaultI = 282, vaultT = "M", crestT = "M" },
 }
 
 -- Custo de upgrade (Midnight Season 1): cada nível de upgrade de um item custa

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.10.0
+
+Nova aba **Raides** com a tabela de recompensas de raid por dificuldade. / New **Raids** tab with the raid reward table by difficulty. / Nueva pestaña **Bandas** con la tabla de recompensas de banda por dificultad.
+
+**Português**
+
+- **Nova aba "Raides"** — ao lado de **Personagens**, **Chaves** e **Progresso**, uma tabela de **recompensas de raid por dificuldade** (LFR / Normal / Heroico / Mítico): a faixa de **ilvl que os bosses dropam** (do 1º ao último boss), a **trilha** (Veterano / Campeão / Herói / Mítico, coloridas), o **Cofre** e o **tier de brasão** de cada dificuldade. Cada linha tem um acento na cor do tier.
+- Os **ilvls espelham os dados do KeystoneLoot** (LFR 233–243 · Normal 246–256 · Heroico 259–269 · Mítico 272–282). A aba some no modo **somente PvP**, como Chaves e Progresso. Trilíngue.
+
+**English**
+
+- **New "Raids" tab** — alongside **Characters**, **Keys** and **Progress**, a table of **raid rewards by difficulty** (LFR / Normal / Heroic / Mythic): the **ilvl range bosses drop** (first to last boss), the **track** (Veteran / Champion / Hero / Myth, color-coded), the **Great Vault** and the **crest tier** of each difficulty. Each row has a tier-colored accent.
+- Item levels **mirror the KeystoneLoot data** (LFR 233–243 · Normal 246–256 · Heroic 259–269 · Mythic 272–282). The tab hides in **PvP-only** mode, like Keys and Progress. Trilingual.
+
+**Español**
+
+- **Nueva pestaña "Bandas"** — junto a **Personajes**, **Llaves** y **Progreso**, una tabla de **recompensas de banda por dificultad** (LFR / Normal / Heroico / Mítico): el rango de **ilvl que sueltan los jefes** (del primero al último), la **vía** (Veterano / Campeón / Héroe / Mítico, con color), la **Cámara** y el **tier de blasón** de cada dificultad. Cada fila tiene un acento del color del tier.
+- Los niveles de objeto **reflejan los datos de KeystoneLoot** (LFR 233–243 · Normal 246–256 · Heroico 259–269 · Mítico 272–282). La pestaña se oculta en modo **solo PvP**, como Llaves y Progreso. Trilingüe.
+
 ## 0.9.1
 
 Moldura da janela mais elaborada. / More elaborate window frame. / Marco de la ventana más elaborado.

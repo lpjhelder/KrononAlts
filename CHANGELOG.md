@@ -2,22 +2,25 @@
 
 ## 0.10.0
 
-Nova aba **Raides** com a tabela de recompensas de raid por dificuldade. / New **Raids** tab with the raid reward table by difficulty. / Nueva pestaña **Bandas** con la tabla de recompensas de banda por dificultad.
+Nova aba **Raides** (recompensas de raid) + a prioridade marca os BiS que você já tem no Mítico. / New **Raids** tab (raid rewards) + priority marks the BiS you already have at Myth. / Nueva pestaña **Bandas** (recompensas de banda) + la prioridad marca los BiS que ya tienes en Mítico.
 
 **Português**
 
 - **Nova aba "Raides"** — ao lado de **Personagens**, **Chaves** e **Progresso**, uma tabela de **recompensas de raid por dificuldade** (LFR / Normal / Heroico / Mítico): a faixa de **ilvl que os bosses dropam** (do 1º ao último boss), a **trilha** (Veterano / Campeão / Herói / Mítico, coloridas), o **Cofre** e o **tier de brasão** de cada dificuldade. Cada linha tem um acento na cor do tier.
 - Os **ilvls espelham os dados do KeystoneLoot** (LFR 233–243 · Normal 246–256 · Heroico 259–269 · Mítico 272–282). A aba some no modo **somente PvP**, como Chaves e Progresso. Trilíngue.
+- **A prioridade marca o que você já tem:** na tabela de prioridade (aba **Progresso**), os favoritos **BiS que você já tem equipados no Mítico** ficam esmaecidos + moldura verde + check, e a masmorra **desce na prioridade** (não precisa mais farmar por ela).
 
 **English**
 
 - **New "Raids" tab** — alongside **Characters**, **Keys** and **Progress**, a table of **raid rewards by difficulty** (LFR / Normal / Heroic / Mythic): the **ilvl range bosses drop** (first to last boss), the **track** (Veteran / Champion / Hero / Myth, color-coded), the **Great Vault** and the **crest tier** of each difficulty. Each row has a tier-colored accent.
 - Item levels **mirror the KeystoneLoot data** (LFR 233–243 · Normal 246–256 · Heroic 259–269 · Mythic 272–282). The tab hides in **PvP-only** mode, like Keys and Progress. Trilingual.
+- **Priority marks what you already have:** in the priority table (**Progress** tab), BiS favorites you already have **equipped at Myth** are dimmed + green-framed + checked, and the dungeon **drops in priority** (no need to farm it anymore).
 
 **Español**
 
 - **Nueva pestaña "Bandas"** — junto a **Personajes**, **Llaves** y **Progreso**, una tabla de **recompensas de banda por dificultad** (LFR / Normal / Heroico / Mítico): el rango de **ilvl que sueltan los jefes** (del primero al último), la **vía** (Veterano / Campeón / Héroe / Mítico, con color), la **Cámara** y el **tier de blasón** de cada dificultad. Cada fila tiene un acento del color del tier.
 - Los niveles de objeto **reflejan los datos de KeystoneLoot** (LFR 233–243 · Normal 246–256 · Heroico 259–269 · Mítico 272–282). La pestaña se oculta en modo **solo PvP**, como Llaves y Progreso. Trilingüe.
+- **La prioridad marca lo que ya tienes:** en la tabla de prioridad (pestaña **Progreso**), los favoritos BiS que ya tienes **equipados en Mítico** aparecen atenuados + marco verde + check, y la mazmorra **baja en prioridad** (ya no necesitas farmearla).
 
 ## 0.9.1
 

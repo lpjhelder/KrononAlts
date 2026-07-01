@@ -1362,6 +1362,36 @@ local function ScanGear(lookup)
   return res
 end
 
+-- Mapa { [itemID] = código de trilha (C/H/M) } do gear EQUIPADO (guarda a MAIOR
+-- trilha por itemID, p/ anéis/berloques duplicados). Usado pela tabela de prioridade
+-- p/ marcar favoritos que você JÁ tem — Mítico = "done". Defensivo: sem API → vazio.
+local function EquippedTracks(lookup)
+  local out = {}
+  if type(GetInventoryItemLink) ~= "function" or not lookup then return out end
+  local instant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+  if type(instant) ~= "function" then return out end
+  for _, slot in ipairs(COACH_SLOTS) do
+    local ok, link = pcall(GetInventoryItemLink, "player", slot)
+    if ok and type(link) == "string" then
+      local okI, itemId = pcall(instant, link)
+      if okI and type(itemId) == "number" then
+        local ids = ExtractBonusIds(link)
+        local code
+        if ids then
+          for _, b in ipairs(ids) do
+            if lookup[b] then code = lookup[b].code; break end
+          end
+        end
+        if code then
+          local prev = out[itemId]
+          if not prev or TrackOrder(code) > TrackOrder(prev) then out[itemId] = code end
+        end
+      end
+    end
+  end
+  return out
+end
+
 -- Info de um brasão (currencyID): quantidade total + progresso do cap SEMANAL.
 -- Os nomes de campo podem variar entre builds; lidos defensivamente. O cap semanal
 -- tem CATCH-UP (acumula), então usa-se o maxWeeklyQuantity REAL da API, não 100 fixo.
@@ -1494,7 +1524,7 @@ end
 -- Caminho PRINCIPAL: SavedVariable GLOBAL `KeystoneLootDB.favorites`. sourceId de
 -- dungeon = challengeModeId (tem nome via GetMapUIInfo); raid/catalyst/custom são
 -- PULADOS. Fallback secundário: namespace privado, se uma build futura o expuser.
-local function BisDungeonPriority(specId)
+local function BisDungeonPriority(specId, equipped)
   if not specId then return nil end
 
   local rows3, rows2 = {}, {}
@@ -1564,8 +1594,21 @@ local function BisDungeonPriority(specId)
   elseif #rows2 > 0 then rows, tier = rows2, 2
   else return nil end
 
-  for _, r in ipairs(rows) do r.count = #r.items end
+  for _, r in ipairs(rows) do
+    r.count = #r.items
+    -- "needed" = favoritos que você ainda NÃO tem no Mítico (os no Mítico = done,
+    -- saem da contagem → a dungeon desce na prioridade)
+    local needed = r.count
+    if equipped then
+      needed = 0
+      for _, id in ipairs(r.items) do
+        if equipped[id] ~= "M" then needed = needed + 1 end
+      end
+    end
+    r.needed = needed
+  end
   table.sort(rows, function(a, b)
+    if a.needed ~= b.needed then return a.needed > b.needed end -- mais a farmar primeiro
     if a.count ~= b.count then return a.count > b.count end
     return (a.name or "") < (b.name or "") -- desempate estável por nome
   end)
@@ -2043,10 +2086,17 @@ local function BuildCoachView(parent)
       btn.star = btn:CreateTexture(nil, "OVERLAY", nil, 3)
       btn.star:SetTexture("Interface\\Common\\ReputationStar")
       btn.star:SetPoint("TOPRIGHT", btn, "TOPRIGHT", 4, 4)
+      -- check de "já equipado no Mítico" (canto inferior direito); oculto por padrão
+      btn.owned = btn:CreateTexture(nil, "OVERLAY", nil, 4)
+      btn.owned:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
+      btn.owned:SetSize(16, 16)
+      btn.owned:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 3, -3)
+      btn.owned:Hide()
       btn:SetScript("OnEnter", function(self)
         if not self.itemId then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         pcall(GameTooltip.SetItemByID, GameTooltip, self.itemId)
+        if self.ownedMyth then GameTooltip:AddLine(L.KEYS_COACH_BIS_OWNED, 0.2, 0.82, 0.48) end
         GameTooltip:Show()
       end)
       btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -2131,6 +2181,7 @@ local function BuildCoachView(parent)
 
     local lookup = BuildTrackLookup()
     local gear   = ScanGear(lookup)
+    local equipped = EquippedTracks(lookup) -- { [itemID] = trilha } p/ marcar favoritos que já tenho
 
     -- linha Gear: contagem por trilha (coloridas) + nº de peças abaixo do máximo
     if lookup and gear.tracked > 0 then
@@ -2260,7 +2311,7 @@ local function BuildCoachView(parent)
     -- (c) PRIORIDADE DE DUNGEONS (mini-tabela em árvore: dungeon + itens favoritados).
     -- Prioriza BiS (tier 3); fallback p/ essenciais (tier 2). Limita às top dungeons
     -- (o resto vira "+N outras") e usa o scroll p/ o overflow vertical.
-    local prio, prioTier = BisDungeonPriority(CurrentSpecId())
+    local prio, prioTier = BisDungeonPriority(CurrentSpecId(), equipped)
     cv.priHeader:SetText(COACH_ICON_BIS .. " " ..
       ((prioTier == 2) and L.KEYS_COACH_PRIO_ESS or L.KEYS_COACH_PRIO_BIS))
 
@@ -2309,6 +2360,18 @@ local function BuildCoachView(parent)
             btn.star:SetVertexColor(0.75, 0.75, 0.78); btn.star:SetSize(14, 14)
           else                  -- BiS: estrela dourada
             btn.star:SetVertexColor(1.0, 0.82, 0.0); btn.star:SetSize(18, 18)
+          end
+          -- favorito que você JÁ tem equipado no Mítico = "done": dessatura + moldura verde + check
+          local oc = equipped and equipped[itemId]
+          if oc == "M" then
+            btn.icon:SetDesaturated(true)
+            btn.qual:SetVertexColor(COLOR_DONE[1], COLOR_DONE[2], COLOR_DONE[3])
+            btn.ownedMyth = true
+            if btn.owned then btn.owned:Show() end
+          else
+            btn.icon:SetDesaturated(false)
+            btn.ownedMyth = false
+            if btn.owned then btn.owned:Hide() end
           end
           local col = (j - 1) % perRow
           local row = math.floor((j - 1) / perRow)

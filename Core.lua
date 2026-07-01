@@ -214,6 +214,7 @@ local EN = {
   KEYS_COACH_PRIO_BIS  = "Priority (by your BiS)",
   KEYS_COACH_PRIO_ESS  = "Priority (by your essentials)",
   KEYS_COACH_PRIO_MORE = "+%d more dungeons",
+  KEYS_COACH_BIS_OWNED = "Already equipped (Myth)",
   KEYS_COACH_KL_ON     = "KeystoneLoot detected \226\128\148 BiS suggestions enabled.",
   KEYS_COACH_KL_OFF    = "Tip: install KeystoneLoot and mark your BiS to unlock dungeon suggestions.",
 }
@@ -382,6 +383,7 @@ local PT = {
   KEYS_COACH_PRIO_BIS  = "Prioridade (pelos seus BiS)",
   KEYS_COACH_PRIO_ESS  = "Prioridade (pelos seus essenciais)",
   KEYS_COACH_PRIO_MORE = "+%d outras dungeons",
+  KEYS_COACH_BIS_OWNED = "Já equipado (Mítico)",
   KEYS_COACH_KL_ON     = "KeystoneLoot detectado \226\128\148 sugestões de BiS ativadas.",
   KEYS_COACH_KL_OFF    = "Dica: instale o KeystoneLoot e marque seus BiS para liberar sugestões de dungeon.",
 }
@@ -550,6 +552,7 @@ local ES = {
   KEYS_COACH_PRIO_BIS  = "Prioridad (por tus BiS)",
   KEYS_COACH_PRIO_ESS  = "Prioridad (por tus esenciales)",
   KEYS_COACH_PRIO_MORE = "+%d mazmorras más",
+  KEYS_COACH_BIS_OWNED = "Ya equipado (Mítico)",
   KEYS_COACH_KL_ON     = "KeystoneLoot detectado \226\128\148 sugerencias de BiS activadas.",
   KEYS_COACH_KL_OFF    = "Consejo: instala KeystoneLoot y marca tus BiS para desbloquear sugerencias de mazmorra.",
 }
